@@ -1,0 +1,53 @@
+@model TalentDesk.Models.EntrarViewModel
+@{
+    ViewData["Title"] = "Entrar";
+    string? returnUrl = ViewData["ReturnUrl"] as string;
+}
+
+@section Styles {
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+}
+
+<div class="entrar-pagina">
+    <div class="entrar-card">
+        <div class="entrar-marca">
+            <span class="brand-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Zm-1 1.9L17.1 8H13V3.9ZM8 12h8v1.6H8V12Zm0 3.4h8V17H8v-1.6Zm0-6.8h3.5v1.6H8V8.6Z"/></svg>
+            </span>
+            <strong>Talent Desk</strong>
+        </div>
+
+        <h1>Entrar</h1>
+        <p class="entrar-subtitulo">Acesse sua conta para gerenciar os currículos.</p>
+
+        @if (TempData["MensagemSucesso"] is string sucesso)
+        {
+            <div class="alerta-sucesso">@sucesso</div>
+        }
+
+        <form method="post" asp-action="Entrar" asp-route-returnUrl="@returnUrl" class="formulario">
+            <div asp-validation-summary="ModelOnly" class="alerta-erro"></div>
+
+            <label class="campo">
+                <span>E-mail</span>
+                <input asp-for="Email" type="email" placeholder="Digite seu e-mail" autocomplete="username" autofocus />
+                <span asp-validation-for="Email" class="erro"></span>
+            </label>
+
+            <label class="campo">
+                <span>Senha</span>
+                <input asp-for="Senha" placeholder="Digite sua senha" autocomplete="current-password" />
+                <span asp-validation-for="Senha" class="erro"></span>
+            </label>
+
+            <button type="submit" class="btn btn-primary btn-lg btn-bloco">Entrar</button>
+        </form>
+
+        <p class="entrar-rodape">
+            Ainda não tem conta? <a asp-controller="Curriculo" asp-action="Login">Criar conta</a>
+            <br />
+            <a asp-controller="Curriculo" asp-action="Index">Voltar para o dashboard</a>
+        </p>
+    </div>
+</div>

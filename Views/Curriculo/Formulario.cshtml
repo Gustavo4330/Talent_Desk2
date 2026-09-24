@@ -1,0 +1,196 @@
+@model TalentDesk.Models.CurriculoFormViewModel
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = Model.EhEdicao ? "Editar currículo" : "Cadastrar currículo";
+    ViewData["Menu"] = "curriculos";
+}
+
+<section class="formulario-pagina">
+    <header class="secao-cabecalho">
+        <a class="link-voltar" asp-action="Index" asp-route-selecionado="@Model.Id">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.7 6.7-1.4-1.4L6.6 12l6.7 6.7 1.4-1.4L9.4 12l5.3-5.3Z"/></svg>
+            Voltar
+        </a>
+        <h2>@ViewData["Title"]</h2>
+        <p>@(Model.EhEdicao ? "Atualize as informações do candidato." : "Preencha os dados do candidato. Campos com * são obrigatórios.")</p>
+    </header>
+
+    <form method="post" enctype="multipart/form-data"
+          asp-action="@(Model.EhEdicao ? "Editar" : "Cadastrar")"
+          asp-route-id="@Model.Id"
+          class="formulario">
+
+        <div asp-validation-summary="ModelOnly" class="alerta-erro"></div>
+
+        <input type="hidden" asp-for="FotoUrl" />
+
+        @* ===== Dados pessoais ===== *@
+        <fieldset class="form-card">
+            <legend>Dados pessoais</legend>
+
+            <div class="foto-campo">
+                <span class="avatar avatar-xl">
+                    @(string.IsNullOrWhiteSpace(Model.Nome) ? "?" : Model.Nome.Trim()[..1].ToUpper())
+                    @if (!string.IsNullOrEmpty(Model.FotoUrl))
+                    {
+                        <img src="@Model.FotoUrl" alt="" />
+                    }
+                </span>
+                <label class="campo">
+                    <span>Foto (JPG, PNG ou WEBP, até 2 MB)</span>
+                    <input asp-for="Foto" type="file" accept=".jpg,.jpeg,.png,.webp" />
+                    <span asp-validation-for="Foto" class="erro"></span>
+                </label>
+            </div>
+
+            <div class="form-grade">
+                <label class="campo campo-largo">
+                    <span>Nome completo *</span>
+                    <input asp-for="Nome" placeholder="Ex.: Amanda Bonfim" />
+                    <span asp-validation-for="Nome" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Idade *</span>
+                    <input asp-for="Idade" type="number" min="14" max="100" />
+                    <span asp-validation-for="Idade" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>E-mail *</span>
+                    <input asp-for="Email" type="email" placeholder="nome@email.com" />
+                    <span asp-validation-for="Email" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Telefone</span>
+                    <input asp-for="Telefone" placeholder="(11) 98765-4321" />
+                    <span asp-validation-for="Telefone" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Cidade *</span>
+                    <input asp-for="Cidade" list="sugestoesCidades" placeholder="São Paulo, SP" />
+                    <span asp-validation-for="Cidade" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>LinkedIn</span>
+                    <input asp-for="Linkedin" placeholder="linkedin.com/in/usuario" />
+                    <span asp-validation-for="Linkedin" class="erro"></span>
+                </label>
+            </div>
+        </fieldset>
+
+        @* ===== Perfil profissional ===== *@
+        <fieldset class="form-card">
+            <legend>Perfil profissional</legend>
+            <div class="form-grade">
+                <label class="campo">
+                    <span>Cargo *</span>
+                    <input asp-for="Cargo" placeholder="Ex.: Analista de Recursos Humanos" />
+                    <span asp-validation-for="Cargo" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Área de atuação *</span>
+                    <input asp-for="Area" list="sugestoesAreas" placeholder="Ex.: Recursos Humanos" />
+                    <span asp-validation-for="Area" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Anos de experiência *</span>
+                    <input asp-for="AnosExperiencia" type="number" min="0" max="60" />
+                    <span asp-validation-for="AnosExperiencia" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Status</span>
+                    <select asp-for="Status">
+                        @foreach (var status in TalentDesk.Models.StatusCurriculo.Todos)
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    </select>
+                </label>
+                <label class="campo campo-inteiro">
+                    <span>Resumo profissional</span>
+                    <textarea asp-for="Resumo" rows="4" placeholder="Conte um pouco sobre a trajetória e os objetivos do candidato."></textarea>
+                    <span asp-validation-for="Resumo" class="erro"></span>
+                </label>
+                <label class="campo campo-inteiro">
+                    <span>Competências (separe por vírgula)</span>
+                    <input asp-for="Habilidades" placeholder="Ex.: Comunicação, Excel, Liderança" />
+                    <span asp-validation-for="Habilidades" class="erro"></span>
+                </label>
+            </div>
+        </fieldset>
+
+        @* ===== Formação ===== *@
+        <fieldset class="form-card">
+            <legend>Formação acadêmica</legend>
+            <div class="form-grade">
+                <label class="campo">
+                    <span>Curso *</span>
+                    <input asp-for="Formacao" list="sugestoesFormacoes" placeholder="Ex.: Psicologia" />
+                    <span asp-validation-for="Formacao" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Formação completa</span>
+                    <input asp-for="FormacaoDetalhada" placeholder="Ex.: Psicologia – Bacharelado" />
+                    <span asp-validation-for="FormacaoDetalhada" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Instituição</span>
+                    <input asp-for="Instituicao" placeholder="Ex.: Universidade de São Paulo (USP)" />
+                    <span asp-validation-for="Instituicao" class="erro"></span>
+                </label>
+                <label class="campo">
+                    <span>Conclusão</span>
+                    <input asp-for="ConclusaoFormacao" placeholder="Ex.: Dez/2018" />
+                    <span asp-validation-for="ConclusaoFormacao" class="erro"></span>
+                </label>
+            </div>
+        </fieldset>
+
+        @* ===== Experiências ===== *@
+        <fieldset class="form-card">
+            <legend>Experiência profissional</legend>
+            <p class="form-dica">Preencha até @TalentDesk.Models.CurriculoFormViewModel.QuantidadeExperiencias experiências. Blocos sem cargo e empresa são ignorados.</p>
+
+            @for (int i = 0; i < Model.Experiencias.Count; i++)
+            {
+                <div class="experiencia-bloco">
+                    <span class="experiencia-numero">@(i + 1)</span>
+                    <div class="form-grade">
+                        <label class="campo">
+                            <span>Cargo</span>
+                            <input asp-for="Experiencias[i].Cargo" placeholder="Ex.: Analista de RH Pleno" />
+                        </label>
+                        <label class="campo">
+                            <span>Empresa</span>
+                            <input asp-for="Experiencias[i].Empresa" placeholder="Ex.: Empresa X" />
+                        </label>
+                        <label class="campo">
+                            <span>Período</span>
+                            <input asp-for="Experiencias[i].Periodo" placeholder="Ex.: Jan/2022 – Atual" />
+                        </label>
+                        <label class="campo campo-inteiro">
+                            <span>Descrição</span>
+                            <textarea asp-for="Experiencias[i].Descricao" rows="2"></textarea>
+                        </label>
+                    </div>
+                </div>
+            }
+        </fieldset>
+
+        <div class="formulario-acoes">
+            <a class="btn btn-outline" asp-action="Index" asp-route-selecionado="@Model.Id">Cancelar</a>
+            <button type="submit" class="btn btn-primary">
+                @(Model.EhEdicao ? "Salvar alterações" : "Cadastrar currículo")
+            </button>
+        </div>
+
+        <datalist id="sugestoesAreas">
+            @foreach (var area in Model.SugestoesAreas) { <option value="@area"></option> }
+        </datalist>
+        <datalist id="sugestoesFormacoes">
+            @foreach (var formacao in Model.SugestoesFormacoes) { <option value="@formacao"></option> }
+        </datalist>
+        <datalist id="sugestoesCidades">
+            @foreach (var cidade in Model.SugestoesCidades) { <option value="@cidade"></option> }
+        </datalist>
+    </form>
+</section>

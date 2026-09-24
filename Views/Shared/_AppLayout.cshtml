@@ -1,0 +1,138 @@
+@using TalentDesk.Services
+@{
+    Layout = "_Layout";
+
+    // Item do menu que fica destacado (definido em cada tela)
+    string menuAtivo = ViewData["Menu"] as string ?? "dashboard";
+    string Ativo(string item) => item == menuAtivo ? "nav-item active" : "nav-item";
+
+    var sessao = Context.Session;
+    bool logado = SessaoUsuario.EstaLogado(sessao);
+    string primeiroNome = SessaoUsuario.PrimeiroNome(sessao);
+
+    int totalFavoritos = new FavoritoService().ObterFavoritos(Context.Request).Count;
+    string paginaAtual = Context.Request.Path + Context.Request.QueryString;
+}
+
+@section Styles {
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+}
+
+<div class="app">
+    <aside class="sidebar">
+        <a class="brand" asp-controller="Curriculo" asp-action="Index">
+            <span class="brand-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Zm-1 1.9L17.1 8H13V3.9ZM8 12h8v1.6H8V12Zm0 3.4h8V17H8v-1.6Zm0-6.8h3.5v1.6H8V8.6Z"/></svg>
+            </span>
+            <span class="brand-text">Talent<br />Desk</span>
+        </a>
+
+        <nav class="sidebar-nav" aria-label="Menu principal">
+            <a class="@Ativo("dashboard")" asp-controller="Curriculo" asp-action="Index">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Zm-1 1.9L17.1 8H13V3.9ZM8 12h8v1.6H8V12Zm0 3.4h8V17H8v-1.6Z"/></svg>
+                <span>Dashboard</span>
+            </a>
+            <a class="@Ativo("curriculos")" asp-controller="Curriculo" asp-action="Index" asp-route-visao="curriculos">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 2v16h10V4H7Zm2 3h6v1.6H9V7Zm0 3.4h6V12H9v-1.6Zm0 3.4h4v1.6H9v-1.6Z"/></svg>
+                <span>Currículos</span>
+            </a>
+            <a class="@Ativo("favoritos")" asp-controller="Curriculo" asp-action="Index" asp-route-visao="favoritos">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 21-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 0 1 6.5 4c1.74 0 3.41.81 4.5 2.09A6.02 6.02 0 0 1 15.5 4 4.5 4.5 0 0 1 20 8.5c0 3.78-3.4 6.86-8.55 11.18L12 21Z"/></svg>
+                <span>Favoritos</span>
+                @if (totalFavoritos > 0)
+                {
+                    <span class="nav-badge">@totalFavoritos</span>
+                }
+            </a>
+            <a class="@Ativo("vagas")" asp-controller="Painel" asp-action="Vagas">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v1h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3V5a2 2 0 0 1 2-2Zm0 3h6V5H9v1ZM4 8v4h7v-1h2v1h7V8H4Zm16 6h-7v1h-2v-1H4v5h16v-5Z"/></svg>
+                <span>Vagas</span>
+            </a>
+            <a class="@Ativo("relatorios")" asp-controller="Painel" asp-action="Relatorios">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h2V10H4v10Zm4 0h2V4H8v16Zm4 0h2v-7h-2v7Zm4 0h2V8h-2v12Zm4 0h2v-4h-2v4Z"/></svg>
+                <span>Relatórios</span>
+            </a>
+            <a class="@Ativo("configuracoes")" asp-controller="Painel" asp-action="Configuracoes">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.18l-2.39.96a7.03 7.03 0 0 0-1.63-.94L14.5 2.5a.5.5 0 0 0-.5-.5h-3.99a.5.5 0 0 0-.5.5l-.34 2.46c-.57.23-1.11.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.18L2.71 9.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.18l2.39-.96c.52.39 1.06.71 1.63.94l.34 2.46c.04.28.25.5.5.5h3.99c.25 0 .46-.22.5-.5l.34-2.46c.57-.23 1.11-.55 1.63-.94l2.39.96a.5.5 0 0 0 .61-.18l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>
+                <span>Configurações</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-card">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13Zm8 0c-.29 0-.62.02-.97.05A4.22 4.22 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>
+            <p>Conectando talentos a grandes oportunidades.</p>
+            <span class="sidebar-card-line"></span>
+        </div>
+
+        <div class="sidebar-user">
+            @if (logado)
+            {
+                <span class="avatar avatar-light">@SessaoUsuario.Iniciais(sessao)</span>
+                <div class="sidebar-user-info">
+                    <strong>@SessaoUsuario.Nome(sessao)</strong>
+                    <span>@SessaoUsuario.Perfil(sessao)</span>
+                </div>
+                <form method="post" asp-controller="Usuario" asp-action="Sair">
+                    <button type="submit" class="sidebar-user-action" title="Sair" aria-label="Sair">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm5.6 4.4L14.2 8.8l2.2 2.2H9v2h7.4l-2.2 2.2 1.4 1.4L20.2 12l-4.6-4.6Z"/></svg>
+                    </button>
+                </form>
+            }
+            else
+            {
+                <span class="avatar avatar-light">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.33 0-8 1.67-8 5v1h16v-1c0-3.33-4.67-5-8-5Z"/></svg>
+                </span>
+                <div class="sidebar-user-info">
+                    <strong>Visitante</strong>
+                    <a asp-controller="Usuario" asp-action="Entrar" asp-route-returnUrl="@paginaAtual">Entrar na conta</a>
+                </div>
+                <a class="sidebar-user-action" asp-controller="Usuario" asp-action="Entrar" asp-route-returnUrl="@paginaAtual" title="Entrar" aria-label="Entrar">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.3 6.7 10.7 5.3 17.4 12l-6.7 6.7-1.4-1.4 5.3-5.3-5.3-5.3Z"/></svg>
+                </a>
+            }
+        </div>
+    </aside>
+
+    <div class="app-main">
+        <header class="topbar">
+            <div class="topbar-title">
+                <h1>@(logado ? $"Olá, {primeiroNome}!" : "Olá!")</h1>
+                <p>Encontre os melhores talentos para sua equipe.</p>
+            </div>
+
+            <form class="topbar-search" method="get" asp-controller="Curriculo" asp-action="Index" role="search">
+                <input type="hidden" name="visao" value="curriculos" />
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.8l4.4 4.4-1.4 1.4-4.4-4.4A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
+                <input type="search" name="busca" placeholder="Buscar currículos, cargos ou competências..." aria-label="Buscar currículos" />
+            </form>
+
+            @await Component.InvokeAsync("Notificacoes")
+
+            <a class="btn btn-primary btn-lg" asp-controller="Curriculo" asp-action="Cadastrar">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7Z"/></svg>
+                <span>Cadastrar currículo</span>
+            </a>
+        </header>
+
+        @if (TempData["Mensagem"] is string mensagem)
+        {
+            <div class="toast" role="status">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1.2 13.6 6.3-6.3-1.4-1.4-4.9 4.9-2.3-2.3-1.4 1.4 3.7 3.7Z"/></svg>
+                <span>@mensagem</span>
+            </div>
+        }
+
+        <main class="app-content">
+            @RenderBody()
+        </main>
+    </div>
+</div>
+
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}

@@ -1,0 +1,52 @@
+@model TalentDesk.Models.RelatoriosViewModel
+@using TalentDesk.Repositories
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = "Relatórios";
+    ViewData["Menu"] = "relatorios";
+    var est = Model.Estatisticas;
+}
+
+@* Desenha uma lista de barras horizontais com a quantidade de cada item *@
+@functions {
+    private static int Percentual(int valor, int maximo) =>
+        maximo <= 0 ? 0 : (int)Math.Round(valor * 100.0 / maximo);
+}
+
+<section class="secao-cabecalho">
+    <h2>Relatórios</h2>
+    <p>Visão geral dos @est.TotalCurriculos currículos cadastrados.</p>
+</section>
+
+<div class="relatorios-grade">
+    @foreach (var (titulo, itens, rota) in new (string, List<ItemContagem>, string)[]
+    {
+        ("Currículos por área", Model.PorArea, "area"),
+        ("Currículos por status", Model.PorStatus, "status"),
+        ("Currículos por cidade", Model.PorCidade, "localizacao"),
+        ("Currículos por formação", Model.PorFormacao, "formacao")
+    })
+    {
+        int maximo = itens.Count == 0 ? 0 : itens.Max(i => i.Quantidade);
+
+        <section class="relatorio-card">
+            <h3>@titulo</h3>
+            @if (itens.Count == 0)
+            {
+                <p class="painel-texto">Sem dados.</p>
+            }
+            <ul class="barras">
+                @foreach (var item in itens)
+                {
+                    <li>
+                        <a asp-controller="Curriculo" asp-action="Index" asp-all-route-data="@(new Dictionary<string, string> { ["visao"] = "curriculos", [rota] = item.Nome })">
+                            <span class="barra-rotulo">@item.Nome</span>
+                            <span class="barra-trilho"><span class="barra" style="width: @Percentual(item.Quantidade, maximo)%"></span></span>
+                            <span class="barra-valor">@item.Quantidade</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+</div>

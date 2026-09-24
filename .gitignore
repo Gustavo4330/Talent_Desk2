@@ -1,0 +1,7 @@
+/bin
+/obj
+.vs/
+*.user
+
+# Fotos enviadas pelo sistema
+wwwroot/uploads/

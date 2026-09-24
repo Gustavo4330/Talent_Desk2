@@ -1,0 +1,88 @@
+@model TalentDesk.Models.Curriculo
+@{
+    // Página própria, sem menu, pronta para imprimir ou "Salvar como PDF"
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Currículo - @Model.Nome</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+</head>
+<body class="pdf-body">
+    <div class="pdf-barra">
+        <span>Para baixar, escolha <strong>"Salvar como PDF"</strong> na janela de impressão.</span>
+        <button type="button" class="btn btn-primary btn-sm" data-imprimir>Imprimir / Salvar PDF</button>
+    </div>
+
+    <article class="pdf-folha">
+        <header class="pdf-cabecalho">
+            <span class="avatar avatar-xl">
+                @Model.Iniciais
+                @if (!string.IsNullOrEmpty(Model.FotoUrl))
+                {
+                    <img src="@Model.FotoUrl" alt="" />
+                }
+            </span>
+            <div>
+                <h1>@Model.Nome</h1>
+                <p class="pdf-cargo">@Model.Cargo · @Model.Area</p>
+                <p class="pdf-contatos">
+                    <span>@Model.Email</span>
+                    @if (!string.IsNullOrEmpty(Model.Telefone)) { <span>@Model.Telefone</span> }
+                    <span>@Model.Cidade</span>
+                    @if (!string.IsNullOrEmpty(Model.Linkedin)) { <span>@Model.Linkedin</span> }
+                    <span>@Model.Idade anos</span>
+                </p>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Resumo))
+        {
+            <section>
+                <h2>Resumo profissional</h2>
+                <p>@Model.Resumo</p>
+            </section>
+        }
+
+        <section>
+            <h2>Experiência profissional <small>(@Model.ExperienciaTexto)</small></h2>
+            @if (Model.Experiencias.Count == 0)
+            {
+                <p>Nenhuma experiência cadastrada.</p>
+            }
+            @foreach (var experiencia in Model.Experiencias)
+            {
+                <div class="pdf-item">
+                    <strong>@experiencia.Cargo – @experiencia.Empresa</strong>
+                    <span>@experiencia.Periodo</span>
+                    <p>@experiencia.Descricao</p>
+                </div>
+            }
+        </section>
+
+        <section>
+            <h2>Formação acadêmica</h2>
+            <div class="pdf-item">
+                <strong>@Model.FormacaoCompleta</strong>
+                <span>@Model.Instituicao@(string.IsNullOrEmpty(Model.ConclusaoFormacao) ? "" : $" · Conclusão: {Model.ConclusaoFormacao}")</span>
+            </div>
+        </section>
+
+        @if (Model.Habilidades.Count > 0)
+        {
+            <section>
+                <h2>Competências</h2>
+                <p class="pdf-tags">@string.Join(" · ", Model.Habilidades)</p>
+            </section>
+        }
+
+        <footer class="pdf-rodape">Gerado pelo Talent Desk em @DateTime.Now.ToString("dd/MM/yyyy")</footer>
+    </article>
+
+    <script src="~/js/script.js" asp-append-version="true"></script>
+</body>
+</html>

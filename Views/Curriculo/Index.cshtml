@@ -1,0 +1,508 @@
+@model TalentDesk.Models.CurriculoIndexViewModel
+@using System.Globalization
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = Model.Titulo;
+    ViewData["Menu"] = Model.Filtro.Visao;
+
+    var filtro = Model.Filtro;
+    var est = Model.Estatisticas;
+    var ptBr = new CultureInfo("pt-BR");
+    string paginaAtual = Context.Request.Path + Context.Request.QueryString;
+    var selecionado = Model.Selecionado;
+
+    string Numero(int valor) => valor.ToString("N0", ptBr);
+}
+
+@* Selo de variação percentual dos cards (ex.: ↑ 12%) *@
+@functions {
+    private static string ClasseVariacao(int variacao) =>
+        variacao > 0 ? "variacao positiva" : variacao < 0 ? "variacao negativa" : "variacao neutra";
+
+    private static string TextoVariacao(int variacao) =>
+        variacao > 0 ? $"↑ {variacao}%" : variacao < 0 ? $"↓ {Math.Abs(variacao)}%" : "0%";
+}
+
+<div class="dashboard @(selecionado != null ? "com-painel" : "")">
+    <div class="dashboard-principal">
+
+        @if (filtro.Visao == TalentDesk.Models.FiltroCurriculo.VisaoDashboard)
+        {
+            <section class="cards-resumo" aria-label="Resumo">
+                <a class="card-resumo" asp-action="Index" asp-route-visao="curriculos">
+                    <span class="card-icone roxo">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Zm-1 1.9L17.1 8H13V3.9ZM8 12h8v1.6H8V12Zm0 3.4h8V17H8v-1.6Z"/></svg>
+                    </span>
+                    <span class="card-info">
+                        <span class="card-rotulo">Total de currículos</span>
+                        <span class="card-valor">
+                            @Numero(est.TotalCurriculos)
+                            @if (est.VariacaoTotal is int variacaoTotal)
+                            {
+                                <span class="@ClasseVariacao(variacaoTotal)">@TextoVariacao(variacaoTotal)</span>
+                            }
+                        </span>
+                        <span class="card-detalhe">em relação ao mês anterior</span>
+                    </span>
+                </a>
+
+                <a class="card-resumo" asp-action="Index" asp-route-visao="curriculos">
+                    <span class="card-icone roxo">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-2.67 0-8 1.34-8 4v2h11.3A6.9 6.9 0 0 1 13 18c0-1.1.26-2.13.72-3.05A15.6 15.6 0 0 0 10 14Zm9 0v-2h-2v2h-2v2h2v2h2v-2h2v-2h-2Z"/></svg>
+                    </span>
+                    <span class="card-info">
+                        <span class="card-rotulo">Novos esta semana</span>
+                        <span class="card-valor">
+                            @Numero(est.NovosEstaSemana)
+                            @if (est.VariacaoNovos is int variacaoNovos)
+                            {
+                                <span class="@ClasseVariacao(variacaoNovos)">@TextoVariacao(variacaoNovos)</span>
+                            }
+                        </span>
+                        <span class="card-detalhe">em relação à semana anterior</span>
+                    </span>
+                </a>
+
+                <a class="card-resumo" asp-action="Index" asp-route-visao="favoritos">
+                    <span class="card-icone rosa">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 21-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 0 1 6.5 4c1.74 0 3.41.81 4.5 2.09A6.02 6.02 0 0 1 15.5 4 4.5 4.5 0 0 1 20 8.5c0 3.78-3.4 6.86-8.55 11.18L12 21Z"/></svg>
+                    </span>
+                    <span class="card-info">
+                        <span class="card-rotulo">Favoritos</span>
+                        <span class="card-valor">@Numero(est.Favoritos)</span>
+                        <span class="card-detalhe">currículos salvos por você</span>
+                    </span>
+                </a>
+
+                <a class="card-resumo" asp-action="Index" asp-route-visao="curriculos" asp-route-status="@TalentDesk.Models.StatusCurriculo.Entrevista">
+                    <span class="card-icone roxo">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13Zm8 0c-.29 0-.62.02-.97.05A4.22 4.22 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>
+                    </span>
+                    <span class="card-info">
+                        <span class="card-rotulo">Em processo seletivo</span>
+                        <span class="card-valor">@Numero(est.EmProcessoSeletivo)</span>
+                        <span class="card-detalhe">em análise ou entrevista</span>
+                    </span>
+                </a>
+            </section>
+        }
+
+        <section class="secao-lista">
+            <header class="secao-cabecalho">
+                <h2>@Model.Titulo</h2>
+                <p>@Model.Subtitulo</p>
+            </header>
+
+            @* ===== Filtros (enviados para o CurriculoController.Index) ===== *@
+            <form id="filtroCurriculos" class="filtros" method="get" asp-action="Index">
+                @if (filtro.Visao != TalentDesk.Models.FiltroCurriculo.VisaoDashboard)
+                {
+                    <input type="hidden" name="visao" value="@filtro.Visao" />
+                }
+                @if (filtro.Itens != TalentDesk.Models.FiltroCurriculo.OpcoesItensPorPagina[0])
+                {
+                    <input type="hidden" name="itens" value="@filtro.Itens" />
+                }
+                <button type="submit" hidden aria-hidden="true" tabindex="-1"></button>
+
+                <label class="filtro-busca">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.8l4.4 4.4-1.4 1.4-4.4-4.4A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
+                    <input type="search" name="busca" value="@filtro.Busca" placeholder="Buscar por nome, cargo ou competência..." aria-label="Buscar por nome, cargo ou competência" />
+                </label>
+
+                <select name="area" class="filtro-select @(string.IsNullOrEmpty(filtro.Area) ? "" : "ativo")" data-auto-submit aria-label="Área">
+                    <option value="">Área</option>
+                    @foreach (var area in Model.Areas)
+                    {
+                        <option value="@area" selected="@(area == filtro.Area)">@area</option>
+                    }
+                </select>
+
+                <select name="formacao" class="filtro-select @(string.IsNullOrEmpty(filtro.Formacao) ? "" : "ativo")" data-auto-submit aria-label="Formação">
+                    <option value="">Formação</option>
+                    @foreach (var formacao in Model.Formacoes)
+                    {
+                        <option value="@formacao" selected="@(formacao == filtro.Formacao)">@formacao</option>
+                    }
+                </select>
+
+                <select name="experiencia" class="filtro-select @(string.IsNullOrEmpty(filtro.Experiencia) ? "" : "ativo")" data-auto-submit aria-label="Experiência">
+                    <option value="">Experiência</option>
+                    @foreach (var faixa in TalentDesk.Models.FaixaExperiencia.Todas)
+                    {
+                        <option value="@faixa.Valor" selected="@(faixa.Valor == filtro.Experiencia)">@faixa.Rotulo</option>
+                    }
+                </select>
+
+                <select name="localizacao" class="filtro-select @(string.IsNullOrEmpty(filtro.Localizacao) ? "" : "ativo")" data-auto-submit aria-label="Localização">
+                    <option value="">Localização</option>
+                    @foreach (var cidade in Model.Cidades)
+                    {
+                        <option value="@cidade" selected="@(cidade == filtro.Localizacao)">@cidade</option>
+                    }
+                </select>
+
+                <details class="mais-filtros">
+                    <summary class="btn btn-outline">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 .78 1.63L14 14.1V20a1 1 0 0 1-1.45.9l-3-1.5A1 1 0 0 1 9 18.5v-4.4L3.22 5.63A1 1 0 0 1 3 5Z"/></svg>
+                        <span>Mais filtros</span>
+                        @if (filtro.QuantidadeFiltrosExtras > 0)
+                        {
+                            <span class="contador">@filtro.QuantidadeFiltrosExtras</span>
+                        }
+                    </summary>
+                    <div class="dropdown mais-filtros-painel">
+                        <label class="campo">
+                            <span>Idade</span>
+                            <input type="number" name="idade" min="14" max="100" inputmode="numeric" value="@filtro.Idade" placeholder="Digite a idade" />
+                        </label>
+                        <label class="campo">
+                            <span>Status</span>
+                            <select name="status">
+                                <option value="">Todos</option>
+                                @foreach (var status in TalentDesk.Models.StatusCurriculo.Todos)
+                                {
+                                    <option value="@status" selected="@(status == filtro.Status)">@status</option>
+                                }
+                            </select>
+                        </label>
+                        <div class="mais-filtros-acoes">
+                            @if (filtro.TemFiltroAtivo)
+                            {
+                                <a class="link" asp-action="Index" asp-route-visao="@(filtro.Visao == "dashboard" ? null : filtro.Visao)">Limpar filtros</a>
+                            }
+                            <button type="submit" class="btn btn-primary">Aplicar</button>
+                        </div>
+                    </div>
+                </details>
+            </form>
+
+            @* ===== Tabela ===== *@
+            <div class="tabela-card">
+                <table class="tabela">
+                    <thead>
+                        <tr>
+                            <th>Candidato</th>
+                            <th>Cargo</th>
+                            <th>Experiência</th>
+                            <th>Localização</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Curriculos.Count == 0)
+                        {
+                            <tr class="linha-vazia">
+                                <td colspan="6">
+                                    @if (filtro.EhFavoritos && !filtro.TemFiltroAtivo)
+                                    {
+                                        <strong>Você ainda não favoritou nenhum currículo.</strong>
+                                        <span>Abra o menu ⋮ de um currículo ou use o botão "Favoritar" no painel de detalhes.</span>
+                                    }
+                                    else
+                                    {
+                                        <strong>Nenhum currículo encontrado.</strong>
+                                        @if (filtro.TemFiltroAtivo)
+                                        {
+                                            <a class="link" asp-action="Index" asp-route-visao="@(filtro.Visao == "dashboard" ? null : filtro.Visao)">Limpar filtros</a>
+                                        }
+                                        else
+                                        {
+                                            <a class="link" asp-action="Cadastrar">Cadastrar o primeiro currículo</a>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+
+                        @foreach (var curriculo in Model.Curriculos)
+                        {
+                            bool ehSelecionado = selecionado?.Id == curriculo.Id;
+                            bool ehFavorito = Model.EhFavorito(curriculo.Id);
+
+                            <tr class="@(ehSelecionado ? (filtro.Selecionado > 0 ? "selecionada explicita" : "selecionada") : "")">
+                                <td data-rotulo="Candidato">
+                                    <div class="candidato">
+                                        <span class="avatar">
+                                            @curriculo.Iniciais
+                                            @if (!string.IsNullOrEmpty(curriculo.FotoUrl))
+                                            {
+                                                <img src="@curriculo.FotoUrl" alt="" loading="lazy" />
+                                            }
+                                        </span>
+                                        <span class="candidato-texto">
+                                            <strong>
+                                                @curriculo.Nome
+                                                @if (ehFavorito)
+                                                {
+                                                    <svg class="icone-favorito" viewBox="0 0 24 24" aria-label="Favorito"><path d="m12 21-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 0 1 6.5 4c1.74 0 3.41.81 4.5 2.09A6.02 6.02 0 0 1 15.5 4 4.5 4.5 0 0 1 20 8.5c0 3.78-3.4 6.86-8.55 11.18L12 21Z"/></svg>
+                                                }
+                                            </strong>
+                                            <span>@curriculo.CadastradoHa</span>
+                                        </span>
+                                    </div>
+                                </td>
+                                <td data-rotulo="Cargo">@curriculo.Cargo</td>
+                                <td data-rotulo="Experiência">@curriculo.ExperienciaTexto</td>
+                                <td data-rotulo="Localização">
+                                    <span class="localizacao">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7Zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>
+                                        @curriculo.Cidade
+                                    </span>
+                                </td>
+                                <td data-rotulo="Status">
+                                    <span class="status @TalentDesk.Models.StatusCurriculo.ClasseCss(curriculo.Status)">@curriculo.Status</span>
+                                </td>
+                                <td data-rotulo="Ações">
+                                    <div class="acoes">
+                                        <a class="btn btn-outline btn-sm" asp-action="Index" asp-all-route-data="@filtro.ParaRota(selecionado: curriculo.Id)" asp-fragment="painel">
+                                            Ver mais
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.3 6.7 1.4-1.4 6.7 6.7-6.7 6.7-1.4-1.4 5.3-5.3-5.3-5.3Z"/></svg>
+                                        </a>
+
+                                        <details class="menu-acoes">
+                                            <summary class="icon-button icon-button-sm" aria-label="Mais ações para @curriculo.Nome">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/></svg>
+                                            </summary>
+                                            <div class="dropdown menu-acoes-lista">
+                                                <form method="post" asp-action="AlternarFavorito" asp-route-id="@curriculo.Id">
+                                                    <input type="hidden" name="returnUrl" value="@paginaAtual" />
+                                                    <button type="submit" class="menu-item">@(ehFavorito ? "Remover dos favoritos" : "Adicionar aos favoritos")</button>
+                                                </form>
+                                                <a class="menu-item" asp-action="Editar" asp-route-id="@curriculo.Id">Editar currículo</a>
+                                                <a class="menu-item" asp-action="Pdf" asp-route-id="@curriculo.Id" target="_blank">Baixar PDF</a>
+
+                                                <span class="menu-separador">Mudar status</span>
+                                                <form method="post" asp-action="AlterarStatus" asp-route-id="@curriculo.Id">
+                                                    <input type="hidden" name="returnUrl" value="@paginaAtual" />
+                                                    @foreach (var status in TalentDesk.Models.StatusCurriculo.Todos)
+                                                    {
+                                                        <button type="submit" name="status" value="@status" class="menu-item @(status == curriculo.Status ? "atual" : "")" disabled="@(status == curriculo.Status)">
+                                                            <span class="status-ponto @TalentDesk.Models.StatusCurriculo.ClasseCss(status)"></span>
+                                                            @status
+                                                        </button>
+                                                    }
+                                                </form>
+
+                                                <span class="menu-separador"></span>
+                                                <form method="post" asp-action="Excluir" asp-route-id="@curriculo.Id" data-confirmar="Excluir o currículo de @curriculo.Nome? Essa ação não pode ser desfeita.">
+                                                    <input type="hidden" name="returnUrl" value="@Url.Action("Index", filtro.ParaRota())" />
+                                                    <button type="submit" class="menu-item perigo">Excluir currículo</button>
+                                                </form>
+                                            </div>
+                                        </details>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @* ===== Paginação ===== *@
+                <div class="paginacao">
+                    <span class="paginacao-info">
+                        Mostrando @Model.PrimeiroItem a @Model.UltimoItem de @Numero(Model.TotalEncontrado) @(Model.TotalEncontrado == 1 ? "currículo" : "currículos")
+                    </span>
+
+                    <nav class="paginacao-paginas" aria-label="Paginação">
+                        @if (filtro.Pagina > 1)
+                        {
+                            <a class="pagina" asp-action="Index" asp-all-route-data="@filtro.ParaRota(pagina: filtro.Pagina - 1, manterSelecionado: true)" aria-label="Página anterior">‹</a>
+                        }
+                        else
+                        {
+                            <span class="pagina desabilitada" aria-hidden="true">‹</span>
+                        }
+
+                        @foreach (var numero in Model.PaginasVisiveis())
+                        {
+                            if (numero == null)
+                            {
+                                <span class="pagina-reticencias">…</span>
+                            }
+                            else if (numero == filtro.Pagina)
+                            {
+                                <span class="pagina atual" aria-current="page">@numero</span>
+                            }
+                            else
+                            {
+                                <a class="pagina" asp-action="Index" asp-all-route-data="@filtro.ParaRota(pagina: numero, manterSelecionado: true)">@numero</a>
+                            }
+                        }
+
+                        @if (filtro.Pagina < Model.TotalPaginas)
+                        {
+                            <a class="pagina" asp-action="Index" asp-all-route-data="@filtro.ParaRota(pagina: filtro.Pagina + 1, manterSelecionado: true)" aria-label="Próxima página">›</a>
+                        }
+                        else
+                        {
+                            <span class="pagina desabilitada" aria-hidden="true">›</span>
+                        }
+                    </nav>
+
+                    <form class="paginacao-itens" method="get" asp-action="Index">
+                        @foreach (var parametro in filtro.ParaRota(pagina: 1, manterSelecionado: true).Where(p => p.Key != "itens"))
+                        {
+                            <input type="hidden" name="@parametro.Key" value="@parametro.Value" />
+                        }
+                        <label for="itensPorPagina">Itens por página</label>
+                        <select id="itensPorPagina" name="itens" data-auto-submit>
+                            @foreach (var opcao in TalentDesk.Models.FiltroCurriculo.OpcoesItensPorPagina)
+                            {
+                                <option value="@opcao" selected="@(opcao == filtro.Itens)">@opcao</option>
+                            }
+                        </select>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    @* ===== Painel de detalhes (direita) ===== *@
+    @if (selecionado != null)
+    {
+        bool selecionadoFavorito = Model.EhFavorito(selecionado.Id);
+
+        <aside class="painel @(filtro.Selecionado > 0 ? "explicito" : "")" id="painel" aria-label="Detalhes de @selecionado.Nome">
+            <div class="painel-topo">
+                <h2>@selecionado.Nome</h2>
+                <a class="icon-button icon-button-sm" asp-action="Index" asp-all-route-data="@filtro.ParaRota(selecionado: 0)" aria-label="Fechar painel" title="Fechar">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/></svg>
+                </a>
+            </div>
+
+            <div class="painel-perfil">
+                <span class="avatar avatar-xl">
+                    @selecionado.Iniciais
+                    @if (!string.IsNullOrEmpty(selecionado.FotoUrl))
+                    {
+                        <img src="@selecionado.FotoUrl" alt="" />
+                    }
+                </span>
+                <div class="painel-contatos">
+                    <p class="painel-cargo">@selecionado.Cargo</p>
+                    <p class="painel-meta">
+                        <span class="status @TalentDesk.Models.StatusCurriculo.ClasseCss(selecionado.Status)">@selecionado.Status</span>
+                        <span>@selecionado.Idade anos</span>
+                    </p>
+                    <a class="contato" href="mailto:@selecionado.Email">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm8 7.2L20 6H4l8 5.2ZM4 8.3V18h16V8.3l-8 5.2-8-5.2Z"/></svg>
+                        <span class="contato-texto" title="@selecionado.Email">@selecionado.Email</span>
+                    </a>
+                    @if (!string.IsNullOrEmpty(selecionado.Telefone))
+                    {
+                        <span class="contato">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1l-2.2 2.23Z"/></svg>
+                            <span class="contato-texto">@selecionado.Telefone</span>
+                        </span>
+                    }
+                    <span class="contato">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7Zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>
+                        <span class="contato-texto">@selecionado.Cidade</span>
+                    </span>
+                    @if (!string.IsNullOrEmpty(selecionado.Linkedin))
+                    {
+                        <a class="contato" href="@selecionado.LinkedinUrl" target="_blank" rel="noopener">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14ZM8.3 18.3V9.8H5.7v8.5h2.6ZM7 8.6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm11.3 9.7v-4.7c0-2.3-1.2-3.4-2.9-3.4a2.5 2.5 0 0 0-2.3 1.3V9.8h-2.6v8.5h2.6v-4.2c0-1.1.2-2.2 1.6-2.2 1.3 0 1.4 1.3 1.4 2.3v4.1h2.2Z"/></svg>
+                            <span class="contato-texto" title="@selecionado.Linkedin">@selecionado.Linkedin</span>
+                        </a>
+                    }
+                </div>
+            </div>
+
+            <div class="painel-botoes">
+                <form method="post" asp-action="AlternarFavorito" asp-route-id="@selecionado.Id">
+                    <input type="hidden" name="returnUrl" value="@paginaAtual" />
+                    <button type="submit" class="btn btn-outline btn-sm @(selecionadoFavorito ? "favoritado" : "")">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 21-1.45-1.32C5.4 15.36 2 12.28 2 8.5A4.5 4.5 0 0 1 6.5 4c1.74 0 3.41.81 4.5 2.09A6.02 6.02 0 0 1 15.5 4 4.5 4.5 0 0 1 20 8.5c0 3.78-3.4 6.86-8.55 11.18L12 21Z"/></svg>
+                        @(selecionadoFavorito ? "Favoritado" : "Favoritar")
+                    </button>
+                </form>
+                <a class="btn btn-outline btn-sm" asp-action="Pdf" asp-route-id="@selecionado.Id" target="_blank">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3V3ZM5 18h14v2H5v-2Z"/></svg>
+                    Baixar PDF
+                </a>
+                <a class="btn btn-primary btn-sm" asp-action="Editar" asp-route-id="@selecionado.Id">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25Zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"/></svg>
+                    Editar perfil
+                </a>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(selecionado.Resumo))
+            {
+                <section class="painel-secao">
+                    <h3>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Zm-1 1.9L17.1 8H13V3.9ZM8 12h8v1.6H8V12Zm0 3.4h8V17H8v-1.6Z"/></svg>
+                        Resumo profissional
+                    </h3>
+                    <p class="painel-texto">@selecionado.Resumo</p>
+                </section>
+            }
+
+            <section class="painel-secao">
+                <h3>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6a2 2 0 0 1 2 2v1h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3V5a2 2 0 0 1 2-2Zm0 3h6V5H9v1Z"/></svg>
+                    Experiência profissional
+                </h3>
+                @if (selecionado.Experiencias.Count == 0)
+                {
+                    <p class="painel-texto">Nenhuma experiência cadastrada.</p>
+                }
+                else
+                {
+                    <ol class="linha-tempo">
+                        @foreach (var experiencia in selecionado.Experiencias)
+                        {
+                            <li>
+                                <strong>@experiencia.Cargo – @experiencia.Empresa</strong>
+                                @if (!string.IsNullOrEmpty(experiencia.Periodo))
+                                {
+                                    <span class="linha-tempo-periodo">@experiencia.Periodo</span>
+                                }
+                                @if (!string.IsNullOrEmpty(experiencia.Descricao))
+                                {
+                                    <p>@experiencia.Descricao</p>
+                                }
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
+
+            <section class="painel-secao">
+                <h3>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 1 9l11 6 9-4.9V17h2V9L12 3ZM5 13.2v4L12 21l7-3.8v-4L12 17l-7-3.8Z"/></svg>
+                    Formação acadêmica
+                </h3>
+                <div class="formacao">
+                    <strong>@selecionado.FormacaoCompleta</strong>
+                    @if (!string.IsNullOrEmpty(selecionado.Instituicao))
+                    {
+                        <span>@selecionado.Instituicao</span>
+                    }
+                    @if (!string.IsNullOrEmpty(selecionado.ConclusaoFormacao))
+                    {
+                        <span>Conclusão: @selecionado.ConclusaoFormacao</span>
+                    }
+                </div>
+            </section>
+
+            @if (selecionado.Habilidades.Count > 0)
+            {
+                <section class="painel-secao">
+                    <h3>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.18l-2.39.96a7.03 7.03 0 0 0-1.63-.94L14.5 2.5a.5.5 0 0 0-.5-.5h-3.99a.5.5 0 0 0-.5.5l-.34 2.46c-.57.23-1.11.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.18L2.71 9.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.18l2.39-.96c.52.39 1.06.71 1.63.94l.34 2.46c.04.28.25.5.5.5h3.99c.25 0 .46-.22.5-.5l.34-2.46c.57-.23 1.11-.55 1.63-.94l2.39.96a.5.5 0 0 0 .61-.18l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>
+                        Competências
+                    </h3>
+                    <div class="tags">
+                        @foreach (var habilidade in selecionado.Habilidades)
+                        {
+                            <a class="tag" asp-action="Index" asp-route-visao="curriculos" asp-route-busca="@habilidade" title="Ver currículos com @habilidade">@habilidade</a>
+                        }
+                    </div>
+                </section>
+            }
+        </aside>
+    }
+</div>

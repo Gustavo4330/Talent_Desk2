@@ -154,7 +154,13 @@
                     <div class="dropdown mais-filtros-painel">
                         <label class="campo">
                             <span>Idade</span>
-                            <input type="number" name="idade" min="14" max="100" inputmode="numeric" value="@filtro.Idade" placeholder="Digite a idade" />
+                            <select name="idade">
+                                <option value="">Todas</option>
+                                @foreach (var faixa in TalentDesk.Models.FaixaIdade.Todas)
+                                {
+                                    <option value="@faixa.Valor" selected="@(faixa.Valor == filtro.Idade)">@faixa.Rotulo</option>
+                                }
+                            </select>
                         </label>
                         <label class="campo">
                             <span>Status</span>
@@ -167,15 +173,41 @@
                             </select>
                         </label>
                         <div class="mais-filtros-acoes">
-                            @if (filtro.TemFiltroAtivo)
-                            {
-                                <a class="link" asp-action="Index" asp-route-visao="@(filtro.Visao == "dashboard" ? null : filtro.Visao)">Limpar filtros</a>
-                            }
                             <button type="submit" class="btn btn-primary">Aplicar</button>
                         </div>
                     </div>
                 </details>
             </form>
+
+            @* ===== Resultado: total, filtros ativos (chips) e ordenação ===== *@
+            <div class="resultados-barra">
+                <div class="chips">
+                    <span class="resultados-total">
+                        @Numero(Model.TotalEncontrado) @(Model.TotalEncontrado == 1 ? "currículo encontrado" : "currículos encontrados")
+                    </span>
+                    @foreach (var ativo in filtro.FiltrosAtivos())
+                    {
+                        <span class="chip">
+                            <span>@ativo.Rotulo: <strong>@ativo.Valor</strong></span>
+                            <a class="chip-remover" asp-action="Index" asp-all-route-data="@filtro.ParaRota(pagina: 1, sem: ativo.Chave)" aria-label="Remover filtro @ativo.Rotulo" title="Remover filtro">×</a>
+                        </span>
+                    }
+                    @if (filtro.TemFiltroAtivo)
+                    {
+                        <a class="link" asp-action="Index" asp-route-visao="@(filtro.Visao == "dashboard" ? null : filtro.Visao)" asp-route-ordem="@(filtro.Ordem == TalentDesk.Models.FiltroCurriculo.OrdemRecentes ? null : filtro.Ordem)">Limpar todos</a>
+                    }
+                </div>
+
+                <label class="ordenacao">
+                    <span>Ordenar por</span>
+                    <select name="ordem" form="filtroCurriculos" data-auto-submit>
+                        @foreach (var opcao in TalentDesk.Models.FiltroCurriculo.OpcoesOrdem)
+                        {
+                            <option value="@opcao.Valor" selected="@(opcao.Valor == filtro.Ordem)">@opcao.Rotulo</option>
+                        }
+                    </select>
+                </label>
+            </div>
 
             @* ===== Tabela ===== *@
             <div class="tabela-card">
@@ -271,7 +303,6 @@
                                                     <button type="submit" class="menu-item">@(ehFavorito ? "Remover dos favoritos" : "Adicionar aos favoritos")</button>
                                                 </form>
                                                 <a class="menu-item" asp-action="Editar" asp-route-id="@curriculo.Id">Editar currículo</a>
-                                                <a class="menu-item" asp-action="Pdf" asp-route-id="@curriculo.Id" target="_blank">Baixar PDF</a>
 
                                                 <span class="menu-separador">Mudar status</span>
                                                 <form method="post" asp-action="AlterarStatus" asp-route-id="@curriculo.Id">
@@ -419,10 +450,6 @@
                         @(selecionadoFavorito ? "Favoritado" : "Favoritar")
                     </button>
                 </form>
-                <a class="btn btn-outline btn-sm" asp-action="Pdf" asp-route-id="@selecionado.Id" target="_blank">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3V3ZM5 18h14v2H5v-2Z"/></svg>
-                    Baixar PDF
-                </a>
                 <a class="btn btn-primary btn-sm" asp-action="Editar" asp-route-id="@selecionado.Id">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25Zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"/></svg>
                     Editar perfil

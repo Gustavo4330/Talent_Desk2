@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using MySqlConnector;
+using Microsoft.Data.Sqlite;
 using TalentDesk.Models;
 using TalentDesk.Repositories;
 
@@ -16,7 +16,7 @@ namespace TalentDesk.ViewComponents
             {
                 novos = new CurriculoRepository().ListarNovos(dias: 7, limite: 5);
             }
-            catch (MySqlException)
+            catch (SqliteException)
             {
                 novos = new List<Curriculo>();
             }

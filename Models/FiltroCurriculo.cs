@@ -1,5 +1,8 @@
 namespace TalentDesk.Models
 {
+    // Um filtro ligado, mostrado como "chip" acima da tabela
+    public record FiltroAtivo(string Chave, string Rotulo, string Valor);
+
     // Tudo que vem na URL da tela de currículos (ex.: ?busca=ana&area=Design&pagina=2)
     public class FiltroCurriculo
     {
@@ -9,16 +12,33 @@ namespace TalentDesk.Models
 
         public static readonly int[] OpcoesItensPorPagina = { 5, 10, 20 };
 
+        public const string OrdemRecentes = "recentes";
+        public const string OrdemNome = "nome";
+        public const string OrdemMaisExperiencia = "mais-experiencia";
+        public const string OrdemMenosExperiencia = "menos-experiencia";
+
+        public static readonly IReadOnlyList<(string Valor, string Rotulo)> OpcoesOrdem = new[]
+        {
+            (OrdemRecentes, "Mais recentes"),
+            (OrdemNome, "Nome (A–Z)"),
+            (OrdemMaisExperiencia, "Mais experiência"),
+            (OrdemMenosExperiencia, "Menos experiência")
+        };
+
         public string? Busca { get; set; }
         public string? Area { get; set; }
         public string? Formacao { get; set; }
         public string? Experiencia { get; set; }
         public string? Localizacao { get; set; }
-        public int? Idade { get; set; }
+
+        // Valor de uma FaixaIdade (ex.: "26-30")
+        public string? Idade { get; set; }
         public string? Status { get; set; }
 
         public int Pagina { get; set; } = 1;
         public int Itens { get; set; } = 5;
+
+        public string Ordem { get; set; } = OrdemRecentes;
 
         public string Visao { get; set; } = VisaoDashboard;
 
@@ -28,7 +48,7 @@ namespace TalentDesk.Models
         public bool EhFavoritos => Visao == VisaoFavoritos;
 
         public int QuantidadeFiltrosExtras =>
-            (Idade.HasValue ? 1 : 0) + (string.IsNullOrWhiteSpace(Status) ? 0 : 1);
+            (string.IsNullOrWhiteSpace(Idade) ? 0 : 1) + (string.IsNullOrWhiteSpace(Status) ? 0 : 1);
 
         public bool TemFiltroAtivo =>
             !string.IsNullOrWhiteSpace(Busca) ||
@@ -65,11 +85,43 @@ namespace TalentDesk.Models
             {
                 Experiencia = null;
             }
+
+            if (FaixaIdade.ObterPorValor(Idade) == null)
+            {
+                Idade = null;
+            }
+
+            if (!OpcoesOrdem.Any(opcao => opcao.Valor == Ordem))
+            {
+                Ordem = OrdemRecentes;
+            }
+        }
+
+        // Filtros ligados com rótulos amigáveis, na ordem em que aparecem na tela
+        public List<FiltroAtivo> FiltrosAtivos()
+        {
+            var ativos = new List<FiltroAtivo>();
+
+            void Adicionar(string chave, string rotulo, string? valor)
+            {
+                if (!string.IsNullOrWhiteSpace(valor)) ativos.Add(new FiltroAtivo(chave, rotulo, valor));
+            }
+
+            Adicionar("busca", "Busca", Busca);
+            Adicionar("area", "Área", Area);
+            Adicionar("formacao", "Formação", Formacao);
+            Adicionar("experiencia", "Experiência", FaixaExperiencia.ObterPorValor(Experiencia)?.Rotulo);
+            Adicionar("localizacao", "Localização", Localizacao);
+            Adicionar("idade", "Idade", FaixaIdade.ObterPorValor(Idade)?.Rotulo);
+            Adicionar("status", "Status", Status);
+
+            return ativos;
         }
 
         // Monta os parâmetros da URL mantendo os filtros atuais.
         // Usado nos links de paginação, "Ver mais", etc.
-        public Dictionary<string, string> ParaRota(int? pagina = null, int? selecionado = null, bool manterSelecionado = false)
+        // "sem" tira um filtro da URL (link do × de cada chip).
+        public Dictionary<string, string> ParaRota(int? pagina = null, int? selecionado = null, bool manterSelecionado = false, string? sem = null)
         {
             var rota = new Dictionary<string, string>();
 
@@ -84,8 +136,9 @@ namespace TalentDesk.Models
             Adicionar("formacao", Formacao);
             Adicionar("experiencia", Experiencia);
             Adicionar("localizacao", Localizacao);
-            Adicionar("idade", Idade?.ToString());
+            Adicionar("idade", Idade);
             Adicionar("status", Status);
+            if (Ordem != OrdemRecentes) Adicionar("ordem", Ordem);
 
             int paginaFinal = pagina ?? Pagina;
             if (paginaFinal > 1) Adicionar("pagina", paginaFinal.ToString());
@@ -93,6 +146,8 @@ namespace TalentDesk.Models
 
             int? selecionadoFinal = selecionado ?? (manterSelecionado ? Selecionado : null);
             if (selecionadoFinal.HasValue) Adicionar("selecionado", selecionadoFinal.Value.ToString());
+
+            if (sem != null) rota.Remove(sem);
 
             return rota;
         }

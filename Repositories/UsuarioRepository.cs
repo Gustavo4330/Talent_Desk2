@@ -1,4 +1,5 @@
-using MySqlConnector;
+using System.Data;
+using Microsoft.Data.Sqlite;
 using TalentDesk.Models;
 using BCrypt.Net;
 
@@ -6,11 +7,19 @@ namespace TalentDesk.Repositories
 {
     public class UsuarioRepository
     {
+        // Abre a conexão garantindo antes que as tabelas existem
+        private static SqliteConnection AbrirConexao()
+        {
+            BancoDeDados.GarantirInicializado();
+
+            var conexao = Conexao.CriarConexao();
+            conexao.Open();
+            return conexao;
+        }
+
         public bool EmailExiste(string email)
         {
-            using var conexao = Conexao.CriarConexao();
-
-            conexao.Open();
+            using var conexao = AbrirConexao();
 
             string sql = @"
                 SELECT COUNT(*)
@@ -18,7 +27,7 @@ namespace TalentDesk.Repositories
                 WHERE email = @email;
             ";
 
-            using var comando = new MySqlCommand(sql, conexao);
+            using var comando = new SqliteCommand(sql, conexao);
 
             comando.Parameters.AddWithValue("@email", email);
 
@@ -29,8 +38,7 @@ namespace TalentDesk.Repositories
 
         public Usuario? ObterPorEmail(string email)
         {
-            using var conexao = Conexao.CriarConexao();
-            conexao.Open();
+            using var conexao = AbrirConexao();
 
             string sql = @"
                 SELECT id, nome, email, senha_hash, whatsapp, data_nascimento, foto_url
@@ -38,7 +46,7 @@ namespace TalentDesk.Repositories
                 WHERE email = @email;
             ";
 
-            using var comando = new MySqlCommand(sql, conexao);
+            using var comando = new SqliteCommand(sql, conexao);
             comando.Parameters.AddWithValue("@email", email);
 
             using var leitor = comando.ExecuteReader();
@@ -54,7 +62,8 @@ namespace TalentDesk.Repositories
                 Email = leitor.GetString("email"),
                 Senha = leitor["senha_hash"] as string ?? string.Empty,
                 Whatsapp = leitor["whatsapp"] as string,
-                DataNascimento = leitor["data_nascimento"] == DBNull.Value ? null : leitor.GetDateTime("data_nascimento"),
+                // A data vem como texto (ou nula) e é convertida com segurança
+                DataNascimento = BancoDeDados.LerData(leitor["data_nascimento"]),
                 FotoUrl = leitor["foto_url"] as string
             };
         }
@@ -62,8 +71,7 @@ namespace TalentDesk.Repositories
         // Nome do perfil do usuário (Candidato, Recrutador ou Administrador)
         public string ObterPerfil(int usuarioId)
         {
-            using var conexao = Conexao.CriarConexao();
-            conexao.Open();
+            using var conexao = AbrirConexao();
 
             string sql = @"
                 SELECT p.nome
@@ -74,7 +82,7 @@ namespace TalentDesk.Repositories
                 LIMIT 1;
             ";
 
-            using var comando = new MySqlCommand(sql, conexao);
+            using var comando = new SqliteCommand(sql, conexao);
             comando.Parameters.AddWithValue("@usuario_id", usuarioId);
 
             return comando.ExecuteScalar() as string ?? "Usuário";
@@ -82,9 +90,7 @@ namespace TalentDesk.Repositories
 
         public int Cadastrar(Usuario usuario)
         {
-            using var conexao = Conexao.CriarConexao();
-
-            conexao.Open();
+            using var conexao = AbrirConexao();
 
             using var transacao = conexao.BeginTransaction();
 
@@ -115,11 +121,11 @@ namespace TalentDesk.Repositories
                         @foto_url
                     );
 
-                    SELECT LAST_INSERT_ID();
+                    SELECT last_insert_rowid();
                 ";
 
                 using var comandoUsuario =
-                    new MySqlCommand(sqlUsuario, conexao, transacao);
+                    new SqliteCommand(sqlUsuario, conexao, transacao);
 
                 comandoUsuario.Parameters.AddWithValue(
                     "@nome",
@@ -141,9 +147,12 @@ namespace TalentDesk.Repositories
                     (object?)usuario.Whatsapp ?? DBNull.Value
                 );
 
+                // Data de nascimento gravada como texto (ex.: "1990-01-31")
                 comandoUsuario.Parameters.AddWithValue(
                     "@data_nascimento",
-                    (object?)usuario.DataNascimento ?? DBNull.Value
+                    usuario.DataNascimento.HasValue
+                        ? (object)BancoDeDados.FormatarData(usuario.DataNascimento.Value)
+                        : DBNull.Value
                 );
 
                 comandoUsuario.Parameters.AddWithValue(
@@ -151,6 +160,7 @@ namespace TalentDesk.Repositories
                     (object?)usuario.FotoUrl ?? DBNull.Value
                 );
 
+                // last_insert_rowid() devolve long; o id cabe em int
                 int usuarioId =
                     Convert.ToInt32(comandoUsuario.ExecuteScalar());
 
@@ -162,7 +172,7 @@ namespace TalentDesk.Repositories
                 ";
 
                 using var comandoPerfil =
-                    new MySqlCommand(sqlPerfil, conexao, transacao);
+                    new SqliteCommand(sqlPerfil, conexao, transacao);
 
                 object? resultadoPerfil =
                     comandoPerfil.ExecuteScalar();
@@ -192,7 +202,7 @@ namespace TalentDesk.Repositories
                 ";
 
                 using var comandoUsuarioPerfil =
-                    new MySqlCommand(
+                    new SqliteCommand(
                         sqlUsuarioPerfil,
                         conexao,
                         transacao

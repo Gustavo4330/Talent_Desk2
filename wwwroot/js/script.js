@@ -37,19 +37,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key === 'Escape') menus.forEach((menu) => { menu.open = false; });
     });
 
-    // Página de PDF: abre a janela de impressão ("Salvar como PDF")
-    const botaoImprimir = document.querySelector('[data-imprimir]');
-    if (botaoImprimir) {
-        botaoImprimir.addEventListener('click', () => window.print());
-        window.setTimeout(() => window.print(), 600);
-    }
-
     // Foto que não carregou: remove a imagem e deixa aparecer as iniciais
     document.querySelectorAll('.avatar img').forEach((img) => {
         const remover = () => img.remove();
         if (img.complete && img.naturalWidth === 0) remover();
         else img.addEventListener('error', remover);
     });
+
+    // Dica flutuante dos gráficos de relatórios (colunas e bolinhas do mapa)
+    const dica = document.querySelector('.dica-flutuante');
+    if (dica) {
+        const mostrar = (alvo) => {
+            const caixa = alvo.getBoundingClientRect();
+            dica.textContent = alvo.dataset.dica;
+            dica.style.left = `${caixa.left + caixa.width / 2}px`;
+            dica.style.top = `${caixa.top}px`;
+            dica.hidden = false;
+        };
+        const esconder = () => { dica.hidden = true; };
+
+        document.querySelectorAll('[data-dica]').forEach((alvo) => {
+            alvo.addEventListener('mouseenter', () => mostrar(alvo));
+            alvo.addEventListener('focus', () => mostrar(alvo));
+            alvo.addEventListener('mouseleave', esconder);
+            alvo.addEventListener('blur', esconder);
+        });
+        window.addEventListener('scroll', esconder, { passive: true });
+    }
 
     // Esconde a mensagem de sucesso depois de alguns segundos
     const toast = document.querySelector('.toast');

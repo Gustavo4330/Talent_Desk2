@@ -15,33 +15,16 @@
         <p>@(Model.EhEdicao ? "Atualize as informações do candidato." : "Preencha os dados do candidato. Campos com * são obrigatórios.")</p>
     </header>
 
-    <form method="post" enctype="multipart/form-data"
+    <form method="post"
           asp-action="@(Model.EhEdicao ? "Editar" : "Cadastrar")"
           asp-route-id="@Model.Id"
           class="formulario">
 
         <div asp-validation-summary="ModelOnly" class="alerta-erro"></div>
 
-        <input type="hidden" asp-for="FotoUrl" />
-
         @* ===== Dados pessoais ===== *@
         <fieldset class="form-card">
             <legend>Dados pessoais</legend>
-
-            <div class="foto-campo">
-                <span class="avatar avatar-xl">
-                    @(string.IsNullOrWhiteSpace(Model.Nome) ? "?" : Model.Nome.Trim()[..1].ToUpper())
-                    @if (!string.IsNullOrEmpty(Model.FotoUrl))
-                    {
-                        <img src="@Model.FotoUrl" alt="" />
-                    }
-                </span>
-                <label class="campo">
-                    <span>Foto (JPG, PNG ou WEBP, até 2 MB)</span>
-                    <input asp-for="Foto" type="file" accept=".jpg,.jpeg,.png,.webp" />
-                    <span asp-validation-for="Foto" class="erro"></span>
-                </label>
-            </div>
 
             <div class="form-grade">
                 <label class="campo campo-largo">

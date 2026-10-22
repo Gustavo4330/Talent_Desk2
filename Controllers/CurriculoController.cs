@@ -7,20 +7,15 @@ namespace TalentDesk.Controllers
 {
     public class CurriculoController : Controller
     {
-        private static readonly string[] ExtensoesFoto = { ".jpg", ".jpeg", ".png", ".webp" };
-        private const long TamanhoMaximoFoto = 2 * 1024 * 1024; // 2 MB
-
         private readonly UsuarioRepository _usuarioRepository;
         private readonly CurriculoRepository _curriculoRepository;
         private readonly FavoritoService _favoritoService;
-        private readonly IWebHostEnvironment _ambiente;
 
-        public CurriculoController(IWebHostEnvironment ambiente)
+        public CurriculoController()
         {
             _usuarioRepository = new UsuarioRepository();
             _curriculoRepository = new CurriculoRepository();
             _favoritoService = new FavoritoService();
-            _ambiente = ambiente;
         }
 
         // ============ DASHBOARD / LISTA / FAVORITOS ============
@@ -28,10 +23,9 @@ namespace TalentDesk.Controllers
         [HttpGet]
         public IActionResult Index([FromQuery] FiltroCurriculo filtro)
         {
-            // Valores inválidos na URL (ex.: ?idade=abc) são ignorados
+            // Valores inválidos na URL (ex.: ?pagina=abc) são ignorados
             if (!ModelState.IsValid)
             {
-                if (ModelState[nameof(FiltroCurriculo.Idade)]?.Errors.Count > 0) filtro.Idade = null;
                 if (ModelState[nameof(FiltroCurriculo.Pagina)]?.Errors.Count > 0) filtro.Pagina = 1;
                 if (ModelState[nameof(FiltroCurriculo.Itens)]?.Errors.Count > 0) filtro.Itens = 5;
                 if (ModelState[nameof(FiltroCurriculo.Selecionado)]?.Errors.Count > 0) filtro.Selecionado = null;
@@ -86,7 +80,6 @@ namespace TalentDesk.Controllers
         public IActionResult Cadastrar(CurriculoFormViewModel form)
         {
             form.Id = null;
-            ValidarFoto(form);
 
             if (!ModelState.IsValid)
             {
@@ -97,7 +90,7 @@ namespace TalentDesk.Controllers
 
             var curriculo = form.ParaCurriculo();
             curriculo.DataCadastro = DateTime.Now;
-            curriculo.FotoUrl = SalvarFoto(form.Foto) ?? string.Empty;
+            curriculo.FotoUrl = string.Empty;
 
             int id = _curriculoRepository.Inserir(curriculo);
 
@@ -130,7 +123,6 @@ namespace TalentDesk.Controllers
             }
 
             form.Id = id;
-            ValidarFoto(form);
 
             if (!ModelState.IsValid)
             {
@@ -142,7 +134,7 @@ namespace TalentDesk.Controllers
 
             var curriculo = form.ParaCurriculo();
             curriculo.Id = id;
-            curriculo.FotoUrl = SalvarFoto(form.Foto) ?? existente.FotoUrl;
+            curriculo.FotoUrl = existente.FotoUrl; // mantém a foto que já existia
 
             _curriculoRepository.Atualizar(curriculo);
 
@@ -190,19 +182,6 @@ namespace TalentDesk.Controllers
             }
 
             return VoltarPara(returnUrl);
-        }
-
-        // Página pronta para imprimir / salvar em PDF
-        [HttpGet]
-        public IActionResult Pdf(int id)
-        {
-            var curriculo = _curriculoRepository.ObterPorId(id);
-            if (curriculo == null)
-            {
-                return NotFound();
-            }
-
-            return View(curriculo);
         }
 
         // Endereço antigo de detalhes: abre o currículo no painel do dashboard
@@ -275,47 +254,6 @@ namespace TalentDesk.Controllers
             form.SugestoesAreas = _curriculoRepository.ListarAreas();
             form.SugestoesFormacoes = _curriculoRepository.ListarFormacoes();
             form.SugestoesCidades = _curriculoRepository.ListarCidades();
-        }
-
-        private void ValidarFoto(CurriculoFormViewModel form)
-        {
-            if (form.Foto == null || form.Foto.Length == 0)
-            {
-                return;
-            }
-
-            string extensao = Path.GetExtension(form.Foto.FileName).ToLowerInvariant();
-
-            if (!ExtensoesFoto.Contains(extensao))
-            {
-                ModelState.AddModelError(nameof(form.Foto), "Envie uma imagem JPG, PNG ou WEBP.");
-            }
-            else if (form.Foto.Length > TamanhoMaximoFoto)
-            {
-                ModelState.AddModelError(nameof(form.Foto), "A foto deve ter no máximo 2 MB.");
-            }
-        }
-
-        // Salva a foto em wwwroot/uploads/curriculos e devolve o endereço dela
-        private string? SalvarFoto(IFormFile? foto)
-        {
-            if (foto == null || foto.Length == 0)
-            {
-                return null;
-            }
-
-            string pasta = Path.Combine(_ambiente.WebRootPath, "uploads", "curriculos");
-            Directory.CreateDirectory(pasta);
-
-            string nomeArquivo = $"{Guid.NewGuid():N}{Path.GetExtension(foto.FileName).ToLowerInvariant()}";
-            string caminho = Path.Combine(pasta, nomeArquivo);
-
-            using (var arquivo = System.IO.File.Create(caminho))
-            {
-                foto.CopyTo(arquivo);
-            }
-
-            return $"/uploads/curriculos/{nomeArquivo}";
         }
     }
 }

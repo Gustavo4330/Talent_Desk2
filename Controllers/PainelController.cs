@@ -1,27 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
 using TalentDesk.Models;
 using TalentDesk.Repositories;
+using TalentDesk.Services;
 
 namespace TalentDesk.Controllers
 {
     // Demais itens do menu lateral
     public class PainelController : Controller
     {
-        private readonly CurriculoRepository _curriculoRepository = new();
+        private readonly RelatorioService _relatorioService = new(new CurriculoRepository());
 
         [HttpGet]
-        public IActionResult Relatorios()
+        public IActionResult Relatorios([FromQuery] FiltroRelatorio filtro)
         {
-            var viewModel = new RelatoriosViewModel
-            {
-                Estatisticas = _curriculoRepository.ObterEstatisticas(new List<int>()),
-                PorArea = _curriculoRepository.ContarPor("area"),
-                PorStatus = _curriculoRepository.ContarPor("status"),
-                PorCidade = _curriculoRepository.ContarPor("cidade"),
-                PorFormacao = _curriculoRepository.ContarPor("formacao")
-            };
-
-            return View(viewModel);
+            return View(_relatorioService.Montar(filtro));
         }
 
         [HttpGet]

@@ -1,48 +1,320 @@
 @model TalentDesk.Models.RelatoriosViewModel
+@using System.Globalization
+@using TalentDesk.Models
 @using TalentDesk.Repositories
 @{
     Layout = "_AppLayout";
-    ViewData["Title"] = "Relatórios";
+    ViewData["Title"] = "Dashboard";
     ViewData["Menu"] = "relatorios";
-    var est = Model.Estatisticas;
+
+    var filtro = Model.Filtro;
+    var ptBr = new CultureInfo("pt-BR");
+    int maximoEvolucao = Model.Evolucao.Count == 0 ? 0 : Model.Evolucao.Max(b => b.Quantidade);
+    int maximoMapa = Model.Pontos.Count == 0 ? 0 : Model.Pontos.Max(p => p.Quantidade);
+    int maximoRegiao = Model.PorRegiao.Count == 0 ? 0 : Model.PorRegiao.Max(r => r.Quantidade);
+    int maximoFunil = Model.Funil.Count == 0 ? 0 : Model.Funil.Max(f => f.Quantidade);
+
+    // Mostra só alguns rótulos no eixo quando há muitas barras (ex.: 30 dias)
+    int passoRotulo = Model.Evolucao.Count > 14 ? 5 : 1;
+    bool mostrarVariacoes = Model.Evolucao.Count <= 13;
+
+    // Crescimento da última barra (ex.: outubro x setembro)
+    var ultimaBarra = Model.Evolucao.LastOrDefault();
+    var penultimaBarra = Model.Evolucao.Count > 1 ? Model.Evolucao[^2] : null;
+
+    // Leva para a lista de currículos já filtrada
+    Dictionary<string, string> RotaLista(string chave, string valor)
+    {
+        var rota = new Dictionary<string, string> { ["visao"] = "curriculos", [chave] = valor };
+        if (!string.IsNullOrWhiteSpace(filtro.Area) && chave != "area") rota["area"] = filtro.Area;
+        return rota;
+    }
+
+    string Plural(int quantidade, string singular, string plural) => quantidade == 1 ? singular : plural;
 }
 
-@* Desenha uma lista de barras horizontais com a quantidade de cada item *@
 @functions {
     private static int Percentual(int valor, int maximo) =>
         maximo <= 0 ? 0 : (int)Math.Round(valor * 100.0 / maximo);
+
+    // Raio da bolinha proporcional à área (raiz quadrada), entre 6 e 22 px
+    private static double Raio(int quantidade, int maximo) =>
+        maximo <= 0 ? 0 : Math.Round(6 + 16 * Math.Sqrt(quantidade / (double)maximo), 1);
+
+    private static string ClasseVariacao(int variacao) =>
+        variacao > 0 ? "variacao positiva" : variacao < 0 ? "variacao negativa" : "variacao neutra";
 }
 
-<section class="secao-cabecalho">
-    <h2>Relatórios</h2>
-    <p>Visão geral dos @est.TotalCurriculos currículos cadastrados.</p>
+@* Selo do semáforo: cor + ícone + texto (nunca só a cor) *@
+@{
+    void Selo(NivelIndicador nivel)
+    {
+        <span class="selo-nivel @Semaforo.Classe(nivel)">
+            <span class="selo-icone" aria-hidden="true">@Semaforo.Icone(nivel)</span>@Semaforo.Rotulo(nivel)
+        </span>
+    }
+}
+
+<section class="relatorio-topo">
+    <header class="secao-cabecalho">
+        <h2>Dashboard</h2>
+        <p>Visão gerencial do banco de talentos · @filtro.RotuloPeriodo.ToLower()@(string.IsNullOrWhiteSpace(filtro.Area) ? "" : $" · {filtro.Area}")</p>
+    </header>
+
+    @* ===== Filtros (valem para a tela inteira) ===== *@
+    <form class="relatorio-filtros" method="get" asp-action="Relatorios">
+        <span class="relatorio-filtros-rotulo">
+            Filtros ativos
+            <span class="contador @(filtro.QuantidadeAtivos == 0 ? "contador-zero" : "")">@filtro.QuantidadeAtivos</span>
+        </span>
+
+        <select name="periodo" class="filtro-select @(filtro.Periodo != FiltroRelatorio.PeriodoTudo ? "ativo" : "")" data-auto-submit aria-label="Período">
+            @foreach (var opcao in FiltroRelatorio.OpcoesPeriodo)
+            {
+                <option value="@opcao.Valor" selected="@(opcao.Valor == filtro.Periodo)">@opcao.Rotulo</option>
+            }
+        </select>
+
+        <select name="area" class="filtro-select @(string.IsNullOrWhiteSpace(filtro.Area) ? "" : "ativo")" data-auto-submit aria-label="Área">
+            <option value="">Todas as áreas</option>
+            @foreach (var area in Model.Areas)
+            {
+                <option value="@area" selected="@(area == filtro.Area)">@area</option>
+            }
+        </select>
+
+        @if (filtro.QuantidadeAtivos > 0)
+        {
+            <a class="link" asp-action="Relatorios">Limpar</a>
+        }
+        <noscript><button type="submit" class="btn btn-outline">Aplicar</button></noscript>
+    </form>
 </section>
 
-<div class="relatorios-grade">
+@* ===== Legenda do semáforo ===== *@
+<div class="legenda-niveis" aria-label="Legenda das cores">
+    <span>Como ler as cores:</span>
+    @{ Selo(NivelIndicador.Bom); }<span>dentro da meta</span>
+    @{ Selo(NivelIndicador.Atencao); }<span>perto do limite</span>
+    @{ Selo(NivelIndicador.Ruim); }<span>abaixo do mínimo</span>
+</div>
+
+@* ===== Indicadores ===== *@
+<section class="kpis" aria-label="Indicadores">
+    <article class="kpi @Semaforo.Classe(Model.NivelCrescimento)">
+        <header class="kpi-topo">
+            <span>Crescimento de cadastros</span>
+            @{ Selo(Model.NivelCrescimento); }
+        </header>
+        <strong class="kpi-valor">@(Model.Crescimento is int crescimento ? Semaforo.TextoVariacao(crescimento) : "—")</strong>
+        <span class="kpi-detalhe">@Model.RotuloCrescimento · @Model.Total.ToString("N0", ptBr) @Plural(Model.Total, "currículo", "currículos") no total</span>
+        <div class="kpi-mini-barras" aria-hidden="true">
+            @foreach (var barra in Model.Evolucao.TakeLast(12))
+            {
+                <span style="height: @Math.Max(Percentual(barra.Quantidade, maximoEvolucao), 4)%"></span>
+            }
+        </div>
+        <span class="kpi-meta">@MetasDashboard.Crescimento.Texto · negativo é crítico</span>
+    </article>
+
+    <article class="kpi @Semaforo.Classe(Model.NivelEmProcesso)">
+        <header class="kpi-topo">
+            <span>Em processo seletivo</span>
+            @{ Selo(Model.NivelEmProcesso); }
+        </header>
+        <strong class="kpi-valor">@Model.PercentualEmProcesso%</strong>
+        <span class="kpi-detalhe">@Model.EmProcesso de @Model.Total @Plural(Model.Total, "currículo", "currículos") em análise ou entrevista</span>
+        <span class="kpi-trilho"><span style="width: @Model.PercentualEmProcesso%"></span></span>
+        <span class="kpi-meta">@MetasDashboard.EmProcesso.Texto · mínimo @MetasDashboard.EmProcesso.Minimo%</span>
+    </article>
+
+    <article class="kpi @Semaforo.Classe(Model.NivelAprovacao)">
+        <header class="kpi-topo">
+            <span>Taxa de aprovação</span>
+            @{ Selo(Model.NivelAprovacao); }
+        </header>
+        <strong class="kpi-valor">@(Model.TaxaAprovacao is int taxa ? $"{taxa}%" : "—")</strong>
+        <span class="kpi-detalhe">@Model.Aprovados @Plural(Model.Aprovados, "aprovado", "aprovados") · @Model.Reprovados @Plural(Model.Reprovados, "reprovado", "reprovados")</span>
+        <span class="kpi-trilho"><span style="width: @(Model.TaxaAprovacao ?? 0)%"></span></span>
+        <span class="kpi-meta">@MetasDashboard.TaxaAprovacao.Texto · mínimo @MetasDashboard.TaxaAprovacao.Minimo%</span>
+    </article>
+
+    <article class="kpi @Semaforo.Classe(Model.NivelExperiencia)">
+        <header class="kpi-topo">
+            <span>Experiência média</span>
+            @{ Selo(Model.NivelExperiencia); }
+        </header>
+        <strong class="kpi-valor">@Model.MediaExperiencia.ToString("0.#", ptBr) <small>anos</small></strong>
+        <span class="kpi-detalhe">idade média de @Model.MediaIdade.ToString("0", ptBr) anos</span>
+        <span class="kpi-trilho"><span style="width: @Math.Min(100, (int)Math.Round(Model.MediaExperiencia * 10))%"></span></span>
+        <span class="kpi-meta">@MetasDashboard.ExperienciaMedia.Texto · mínimo @MetasDashboard.ExperienciaMedia.Minimo anos</span>
+    </article>
+</section>
+
+<div class="relatorio-grade">
+    @* ===== Evolução dos cadastros ===== *@
+    <section class="relatorio-card relatorio-evolucao">
+        <header class="relatorio-card-topo">
+            <h3>@Model.TituloEvolucao</h3>
+            @if (ultimaBarra?.Variacao is int ultimaVariacao)
+            {
+                <span class="relatorio-card-detalhe">
+                    <span class="@ClasseVariacao(ultimaVariacao)">@Semaforo.TextoVariacao(ultimaVariacao)</span>
+                    em @ultimaBarra.Rotulo vs. @penultimaBarra!.Rotulo
+                </span>
+            }
+            else
+            {
+                <span class="relatorio-card-detalhe">@filtro.RotuloPeriodo</span>
+            }
+        </header>
+        <div class="colunas @(mostrarVariacoes ? "com-variacao" : "")" role="img" aria-label="@Model.TituloEvolucao: @string.Join(", ", Model.Evolucao.Select(b => b.Dica))">
+            <div class="colunas-grade" aria-hidden="true">
+                <span>@maximoEvolucao</span>
+                <span>@(maximoEvolucao > 1 ? (maximoEvolucao / 2).ToString() : "")</span>
+                <span>0</span>
+            </div>
+            <div class="colunas-barras">
+                @for (int i = 0; i < Model.Evolucao.Count; i++)
+                {
+                    var barra = Model.Evolucao[i];
+                    bool mostrarRotulo = i % passoRotulo == 0 || i == Model.Evolucao.Count - 1;
+                    <div class="coluna" data-dica="@barra.Dica" tabindex="0">
+                        <span class="coluna-trilho">
+                            @if (barra.Quantidade > 0)
+                            {
+                                <span class="coluna-barra" style="height: @Percentual(barra.Quantidade, maximoEvolucao)%">
+                                    @if (mostrarVariacoes)
+                                    {
+                                        <span class="coluna-valor">@barra.Quantidade</span>
+                                    }
+                                </span>
+                            }
+                        </span>
+                        <span class="coluna-rotulo">@(mostrarRotulo ? barra.Rotulo : "")</span>
+                        @if (mostrarVariacoes)
+                        {
+                            <span class="coluna-variacao">
+                                @if (barra.Variacao is int variacaoBarra)
+                                {
+                                    <span class="@ClasseVariacao(variacaoBarra)">@Semaforo.TextoVariacao(variacaoBarra)</span>
+                                }
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    @* ===== Funil do processo seletivo ===== *@
+    <section class="relatorio-card relatorio-funil">
+        <header class="relatorio-card-topo">
+            <h3>Processo seletivo</h3>
+            <span class="relatorio-card-detalhe">% do total por status</span>
+        </header>
+        <ul class="funil">
+            @foreach (var etapa in Model.Funil)
+            {
+                <li>
+                    <a asp-controller="Curriculo" asp-action="Index" asp-all-route-data="@RotaLista("status", etapa.Nome)">
+                        <span class="funil-nome"><span class="status-ponto @StatusCurriculo.ClasseCss(etapa.Nome)"></span>@etapa.Nome</span>
+                        <span class="funil-valor">@Percentual(etapa.Quantidade, Model.Total)% <small>@etapa.Quantidade</small></span>
+                        <span class="funil-trilho"><span class="@StatusCurriculo.ClasseCss(etapa.Nome)" style="width: @Percentual(etapa.Quantidade, maximoFunil)%"></span></span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </section>
+
+    @* ===== Mapa do Brasil ===== *@
+    <section class="relatorio-card relatorio-mapa">
+        <header class="relatorio-card-topo">
+            <h3>Onde estão os candidatos</h3>
+            <span class="relatorio-card-detalhe">tamanho da bolinha = quantidade de currículos</span>
+        </header>
+
+        <div class="mapa-conteudo">
+            <svg class="mapa" viewBox="0 0 @MapaBrasil.Largura @MapaBrasil.Altura" role="img" aria-label="Mapa do Brasil com a quantidade de currículos por cidade">
+                <partial name="_MapaBrasilEstados" />
+                <g class="mapa-pontos">
+                    @foreach (var ponto in Model.Pontos)
+                    {
+                        <a asp-controller="Curriculo" asp-action="Index" asp-all-route-data="@RotaLista("localizacao", ponto.Cidade)"
+                           data-dica="@ponto.Cidade: @ponto.Quantidade @Plural(ponto.Quantidade, "currículo", "currículos")"
+                           aria-label="@ponto.Cidade: @ponto.Quantidade @Plural(ponto.Quantidade, "currículo", "currículos")">
+                            <circle class="mapa-ponto" cx="@ponto.X.ToString(CultureInfo.InvariantCulture)" cy="@ponto.Y.ToString(CultureInfo.InvariantCulture)"
+                                    r="@Raio(ponto.Quantidade, maximoMapa).ToString(CultureInfo.InvariantCulture)" />
+                        </a>
+                    }
+                </g>
+            </svg>
+
+            <div class="mapa-lado">
+                <h4>Por região</h4>
+                <ul class="barras barras-compactas">
+                    @foreach (var regiao in Model.PorRegiao)
+                    {
+                        <li>
+                            <span class="barra-linha">
+                                <span class="barra-rotulo">@regiao.Nome</span>
+                                <span class="barra-trilho"><span class="barra" style="width: @Percentual(regiao.Quantidade, maximoRegiao)%"></span></span>
+                                <span class="barra-valor">@Percentual(regiao.Quantidade, Model.Total)%</span>
+                            </span>
+                        </li>
+                    }
+                </ul>
+
+                <h4>Principais cidades</h4>
+                @if (Model.Pontos.Count == 0)
+                {
+                    <p class="painel-texto">Nenhum currículo no período.</p>
+                }
+                <ol class="ranking">
+                    @foreach (var ponto in Model.Pontos.Take(5))
+                    {
+                        <li>
+                            <a asp-controller="Curriculo" asp-action="Index" asp-all-route-data="@RotaLista("localizacao", ponto.Cidade)">
+                                <span>@ponto.Cidade</span>
+                                <strong>@ponto.Quantidade</strong>
+                            </a>
+                        </li>
+                    }
+                </ol>
+                @if (Model.SemLocalizacao > 0)
+                {
+                    <p class="mapa-aviso">@Model.SemLocalizacao @Plural(Model.SemLocalizacao, "currículo", "currículos") sem cidade no formato "Cidade, UF" não @Plural(Model.SemLocalizacao, "aparece", "aparecem") no mapa.</p>
+                }
+            </div>
+        </div>
+    </section>
+
+    @* ===== Áreas e formações ===== *@
     @foreach (var (titulo, itens, rota) in new (string, List<ItemContagem>, string)[]
     {
-        ("Currículos por área", Model.PorArea, "area"),
-        ("Currículos por status", Model.PorStatus, "status"),
-        ("Currículos por cidade", Model.PorCidade, "localizacao"),
-        ("Currículos por formação", Model.PorFormacao, "formacao")
+        ("Principais áreas", Model.PorArea, "area"),
+        ("Principais formações", Model.PorFormacao, "formacao")
     })
     {
         int maximo = itens.Count == 0 ? 0 : itens.Max(i => i.Quantidade);
 
         <section class="relatorio-card">
-            <h3>@titulo</h3>
+            <header class="relatorio-card-topo">
+                <h3>@titulo</h3>
+                <span class="relatorio-card-detalhe">% do total</span>
+            </header>
             @if (itens.Count == 0)
             {
-                <p class="painel-texto">Sem dados.</p>
+                <p class="painel-texto">Sem dados no período.</p>
             }
             <ul class="barras">
                 @foreach (var item in itens)
                 {
                     <li>
-                        <a asp-controller="Curriculo" asp-action="Index" asp-all-route-data="@(new Dictionary<string, string> { ["visao"] = "curriculos", [rota] = item.Nome })">
+                        <a asp-controller="Curriculo" asp-action="Index" asp-all-route-data="@RotaLista(rota, item.Nome)" title="@item.Quantidade @Plural(item.Quantidade, "currículo", "currículos")">
                             <span class="barra-rotulo">@item.Nome</span>
                             <span class="barra-trilho"><span class="barra" style="width: @Percentual(item.Quantidade, maximo)%"></span></span>
-                            <span class="barra-valor">@item.Quantidade</span>
+                            <span class="barra-valor">@Percentual(item.Quantidade, Model.Total)%</span>
                         </a>
                     </li>
                 }
@@ -50,3 +322,5 @@
         </section>
     }
 </div>
+
+<div class="dica-flutuante" role="tooltip" hidden></div>

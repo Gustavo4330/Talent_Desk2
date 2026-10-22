@@ -1,4 +1,5 @@
-using MySqlConnector;
+using System.Data;
+using Microsoft.Data.Sqlite;
 using TalentDesk.Models;
 
 namespace TalentDesk.Repositories
@@ -28,7 +29,7 @@ namespace TalentDesk.Repositories
         }
 
         // Abre a conexão garantindo antes que as tabelas existem
-        private MySqlConnection AbrirConexao()
+        private SqliteConnection AbrirConexao()
         {
             if (_verificarBanco)
             {
@@ -53,7 +54,7 @@ namespace TalentDesk.Repositories
 
             using var conexao = AbrirConexao();
 
-            using var comandoTotal = new MySqlCommand { Connection = conexao };
+            using var comandoTotal = new SqliteCommand { Connection = conexao };
             string where = MontarWhere(filtro, favoritos, comandoTotal);
 
             comandoTotal.CommandText = $"SELECT COUNT(*) FROM curriculos c {where};";
@@ -66,14 +67,14 @@ namespace TalentDesk.Repositories
                 filtro.Pagina = totalPaginas;
             }
 
-            using var comando = new MySqlCommand { Connection = conexao };
+            using var comando = new SqliteCommand { Connection = conexao };
             where = MontarWhere(filtro, favoritos, comando);
 
             comando.CommandText = $@"
                 SELECT {ColunasCurriculo}
                 FROM curriculos c
                 {where}
-                ORDER BY c.data_cadastro DESC, c.id DESC
+                ORDER BY {MontarOrdem(filtro.Ordem)}
                 LIMIT @limite OFFSET @deslocamento;";
 
             comando.Parameters.AddWithValue("@limite", filtro.Itens);
@@ -91,17 +92,29 @@ namespace TalentDesk.Repositories
             return (itens, total);
         }
 
+        // O ORDER BY sai desta lista fixa, nunca do texto da URL
+        private static string MontarOrdem(string ordem) => ordem switch
+        {
+            FiltroCurriculo.OrdemNome => "sem_acento(c.nome) ASC, c.id DESC",
+            FiltroCurriculo.OrdemMaisExperiencia => "c.anos_experiencia DESC, c.id DESC",
+            FiltroCurriculo.OrdemMenosExperiencia => "c.anos_experiencia ASC, c.id DESC",
+            _ => "c.data_cadastro DESC, c.id DESC"
+        };
+
         // Monta o WHERE com parâmetros (nunca concatenando o texto digitado)
-        private static string MontarWhere(FiltroCurriculo filtro, ICollection<int> favoritos, MySqlCommand comando)
+        private static string MontarWhere(FiltroCurriculo filtro, ICollection<int> favoritos, SqliteCommand comando)
         {
             var condicoes = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(filtro.Busca))
             {
-                condicoes.Add(@"(c.nome LIKE @busca OR c.cargo LIKE @busca OR c.area LIKE @busca
+                // sem_acento() tira acentos e maiúsculas dos dois lados da comparação,
+                // então "joao" encontra "João" e "sao paulo" encontra "São Paulo"
+                condicoes.Add(@"(sem_acento(c.nome) LIKE @busca OR sem_acento(c.cargo) LIKE @busca
+                    OR sem_acento(c.area) LIKE @busca OR sem_acento(c.cidade) LIKE @busca
                     OR EXISTS (SELECT 1 FROM curriculo_habilidades h
-                               WHERE h.curriculo_id = c.id AND h.nome LIKE @busca))");
-                comando.Parameters.AddWithValue("@busca", $"%{filtro.Busca.Trim()}%");
+                               WHERE h.curriculo_id = c.id AND sem_acento(h.nome) LIKE @busca))");
+                comando.Parameters.AddWithValue("@busca", $"%{Conexao.SemAcento(filtro.Busca.Trim())}%");
             }
 
             if (!string.IsNullOrWhiteSpace(filtro.Area))
@@ -130,10 +143,12 @@ namespace TalentDesk.Repositories
                 comando.Parameters.AddWithValue("@expMax", faixa.Maximo);
             }
 
-            if (filtro.Idade.HasValue)
+            var faixaIdade = FaixaIdade.ObterPorValor(filtro.Idade);
+            if (faixaIdade != null)
             {
-                condicoes.Add("c.idade = @idade");
-                comando.Parameters.AddWithValue("@idade", filtro.Idade.Value);
+                condicoes.Add("c.idade BETWEEN @idadeMin AND @idadeMax");
+                comando.Parameters.AddWithValue("@idadeMin", faixaIdade.IdadeMinima);
+                comando.Parameters.AddWithValue("@idadeMax", faixaIdade.IdadeMaxima);
             }
 
             if (!string.IsNullOrWhiteSpace(filtro.Status))
@@ -151,7 +166,7 @@ namespace TalentDesk.Repositories
         }
 
         // Cria @fav0, @fav1, ... para usar em "IN (...)"
-        private static string CriarParametrosIn(IEnumerable<int> ids, MySqlCommand comando, string prefixo)
+        private static string CriarParametrosIn(IEnumerable<int> ids, SqliteCommand comando, string prefixo)
         {
             var nomes = new List<string>();
             int i = 0;
@@ -170,7 +185,7 @@ namespace TalentDesk.Repositories
 
             Curriculo? curriculo;
 
-            using (var comando = new MySqlCommand($"SELECT {ColunasCurriculo} FROM curriculos c WHERE c.id = @id;", conexao))
+            using (var comando = new SqliteCommand($"SELECT {ColunasCurriculo} FROM curriculos c WHERE c.id = @id;", conexao))
             {
                 comando.Parameters.AddWithValue("@id", id);
                 using var leitor = comando.ExecuteReader();
@@ -182,7 +197,7 @@ namespace TalentDesk.Repositories
                 return null;
             }
 
-            using (var comando = new MySqlCommand(@"
+            using (var comando = new SqliteCommand(@"
                 SELECT cargo, empresa, periodo, descricao
                 FROM curriculo_experiencias
                 WHERE curriculo_id = @id
@@ -202,7 +217,7 @@ namespace TalentDesk.Repositories
                 }
             }
 
-            using (var comando = new MySqlCommand(@"
+            using (var comando = new SqliteCommand(@"
                 SELECT nome FROM curriculo_habilidades
                 WHERE curriculo_id = @id
                 ORDER BY id;", conexao))
@@ -222,7 +237,7 @@ namespace TalentDesk.Repositories
         {
             using var conexao = AbrirConexao();
 
-            using var comando = new MySqlCommand("SELECT COUNT(*) FROM curriculos WHERE id = @id;", conexao);
+            using var comando = new SqliteCommand("SELECT COUNT(*) FROM curriculos WHERE id = @id;", conexao);
             comando.Parameters.AddWithValue("@id", id);
             return Convert.ToInt32(comando.ExecuteScalar()) > 0;
         }
@@ -237,8 +252,8 @@ namespace TalentDesk.Repositories
             // A coluna vem só dos três métodos acima, nunca do usuário
             using var conexao = AbrirConexao();
 
-            using var comando = new MySqlCommand(
-                $"SELECT DISTINCT {coluna} FROM curriculos WHERE {coluna} <> '' ORDER BY {coluna};", conexao);
+            using var comando = new SqliteCommand(
+                $"SELECT DISTINCT {coluna} FROM curriculos WHERE {coluna} <> '' ORDER BY sem_acento({coluna});", conexao);
 
             var valores = new List<string>();
             using var leitor = comando.ExecuteReader();
@@ -254,7 +269,7 @@ namespace TalentDesk.Repositories
         {
             using var conexao = AbrirConexao();
 
-            using var comando = new MySqlCommand($@"
+            using var comando = new SqliteCommand($@"
                 SELECT {ColunasCurriculo}
                 FROM curriculos c
                 WHERE c.status = @status AND c.data_cadastro >= @desde
@@ -262,7 +277,7 @@ namespace TalentDesk.Repositories
                 LIMIT @limite;", conexao);
 
             comando.Parameters.AddWithValue("@status", StatusCurriculo.Novo);
-            comando.Parameters.AddWithValue("@desde", DateTime.Now.AddDays(-dias));
+            comando.Parameters.AddWithValue("@desde", BancoDeDados.FormatarDataHora(DateTime.Now.AddDays(-dias)));
             comando.Parameters.AddWithValue("@limite", limite);
 
             var itens = new List<Curriculo>();
@@ -281,7 +296,7 @@ namespace TalentDesk.Repositories
             var agora = DateTime.Now;
             var inicioDoMes = new DateTime(agora.Year, agora.Month, 1);
 
-            using var comando = new MySqlCommand(@"
+            using var comando = new SqliteCommand(@"
                 SELECT
                     COUNT(*) AS total,
                     COALESCE(SUM(data_cadastro < @inicioMes), 0) AS total_inicio_mes,
@@ -290,9 +305,10 @@ namespace TalentDesk.Repositories
                     COALESCE(SUM(status IN (@statusAnalise, @statusEntrevista)), 0) AS em_processo
                 FROM curriculos;", conexao);
 
-            comando.Parameters.AddWithValue("@inicioMes", inicioDoMes);
-            comando.Parameters.AddWithValue("@seteDias", agora.AddDays(-7));
-            comando.Parameters.AddWithValue("@quatorzeDias", agora.AddDays(-14));
+            // As datas são texto no formato ISO, então comparar o texto compara a data
+            comando.Parameters.AddWithValue("@inicioMes", BancoDeDados.FormatarDataHora(inicioDoMes));
+            comando.Parameters.AddWithValue("@seteDias", BancoDeDados.FormatarDataHora(agora.AddDays(-7)));
+            comando.Parameters.AddWithValue("@quatorzeDias", BancoDeDados.FormatarDataHora(agora.AddDays(-14)));
             comando.Parameters.AddWithValue("@statusAnalise", StatusCurriculo.EmAnalise);
             comando.Parameters.AddWithValue("@statusEntrevista", StatusCurriculo.Entrevista);
 
@@ -313,7 +329,7 @@ namespace TalentDesk.Repositories
             // Conta só os favoritos que ainda existem no banco
             if (favoritos.Count > 0)
             {
-                using var comandoFav = new MySqlCommand { Connection = conexao };
+                using var comandoFav = new SqliteCommand { Connection = conexao };
                 string parametros = CriarParametrosIn(favoritos, comandoFav, "fav");
                 comandoFav.CommandText = $"SELECT COUNT(*) FROM curriculos WHERE id IN ({parametros});";
                 estatisticas.Favoritos = Convert.ToInt32(comandoFav.ExecuteScalar());
@@ -322,33 +338,27 @@ namespace TalentDesk.Repositories
             return estatisticas;
         }
 
-        // Quantidade de currículos agrupados por uma coluna (tela de relatórios)
-        public List<ItemContagem> ContarPor(string coluna)
+        // Currículos usados nos relatórios (sem experiências e competências).
+        // Os números são calculados no RelatorioService.
+        public List<Curriculo> ListarParaRelatorio(string? area)
         {
-            // Só aceita colunas conhecidas, para evitar SQL injection
-            string[] permitidas = { "area", "status", "cidade", "formacao" };
-            if (!permitidas.Contains(coluna))
-            {
-                throw new ArgumentException("Coluna inválida para relatório.", nameof(coluna));
-            }
-
             using var conexao = AbrirConexao();
 
-            using var comando = new MySqlCommand($@"
-                SELECT {coluna} AS nome, COUNT(*) AS quantidade
-                FROM curriculos
-                GROUP BY {coluna}
-                ORDER BY quantidade DESC, nome;", conexao);
+            using var comando = new SqliteCommand { Connection = conexao };
+            string where = string.Empty;
+            if (!string.IsNullOrWhiteSpace(area))
+            {
+                where = "WHERE c.area = @area";
+                comando.Parameters.AddWithValue("@area", area);
+            }
 
-            var itens = new List<ItemContagem>();
+            comando.CommandText = $"SELECT {ColunasCurriculo} FROM curriculos c {where};";
+
+            var itens = new List<Curriculo>();
             using var leitor = comando.ExecuteReader();
             while (leitor.Read())
             {
-                itens.Add(new ItemContagem
-                {
-                    Nome = leitor.GetString("nome"),
-                    Quantidade = Convert.ToInt32(leitor["quantidade"])
-                });
+                itens.Add(LerCurriculo(leitor));
             }
             return itens;
         }
@@ -362,7 +372,7 @@ namespace TalentDesk.Repositories
 
             try
             {
-                using var comando = new MySqlCommand(@"
+                using var comando = new SqliteCommand(@"
                     INSERT INTO curriculos
                         (nome, cargo, area, formacao, formacao_detalhada, instituicao, conclusao_formacao,
                          idade, anos_experiencia, foto_url, email, telefone, cidade, linkedin, resumo,
@@ -371,11 +381,12 @@ namespace TalentDesk.Repositories
                         (@nome, @cargo, @area, @formacao, @formacao_detalhada, @instituicao, @conclusao_formacao,
                          @idade, @anos_experiencia, @foto_url, @email, @telefone, @cidade, @linkedin, @resumo,
                          @status, @data_cadastro);
-                    SELECT LAST_INSERT_ID();", conexao, transacao);
+                    SELECT last_insert_rowid();", conexao, transacao);
 
                 AdicionarParametros(comando, curriculo);
-                comando.Parameters.AddWithValue("@data_cadastro", curriculo.DataCadastro);
+                comando.Parameters.AddWithValue("@data_cadastro", BancoDeDados.FormatarDataHora(curriculo.DataCadastro));
 
+                // last_insert_rowid() devolve long; o id cabe em int
                 int id = Convert.ToInt32(comando.ExecuteScalar());
 
                 GravarFilhos(conexao, transacao, id, curriculo);
@@ -398,7 +409,7 @@ namespace TalentDesk.Repositories
 
             try
             {
-                using var comando = new MySqlCommand(@"
+                using var comando = new SqliteCommand(@"
                     UPDATE curriculos SET
                         nome = @nome, cargo = @cargo, area = @area, formacao = @formacao,
                         formacao_detalhada = @formacao_detalhada, instituicao = @instituicao,
@@ -409,7 +420,7 @@ namespace TalentDesk.Repositories
                     WHERE id = @id;", conexao, transacao);
 
                 AdicionarParametros(comando, curriculo);
-                comando.Parameters.AddWithValue("@data_atualizacao", DateTime.Now);
+                comando.Parameters.AddWithValue("@data_atualizacao", BancoDeDados.FormatarDataHora(DateTime.Now));
                 comando.Parameters.AddWithValue("@id", curriculo.Id);
 
                 if (comando.ExecuteNonQuery() == 0)
@@ -419,7 +430,7 @@ namespace TalentDesk.Repositories
                 }
 
                 // Apaga experiências e competências antigas e grava as novas
-                using (var apagar = new MySqlCommand(@"
+                using (var apagar = new SqliteCommand(@"
                     DELETE FROM curriculo_experiencias WHERE curriculo_id = @id;
                     DELETE FROM curriculo_habilidades WHERE curriculo_id = @id;", conexao, transacao))
                 {
@@ -445,10 +456,10 @@ namespace TalentDesk.Repositories
 
             using var conexao = AbrirConexao();
 
-            using var comando = new MySqlCommand(@"
+            using var comando = new SqliteCommand(@"
                 UPDATE curriculos SET status = @status, data_atualizacao = @agora WHERE id = @id;", conexao);
             comando.Parameters.AddWithValue("@status", status);
-            comando.Parameters.AddWithValue("@agora", DateTime.Now);
+            comando.Parameters.AddWithValue("@agora", BancoDeDados.FormatarDataHora(DateTime.Now));
             comando.Parameters.AddWithValue("@id", id);
             return comando.ExecuteNonQuery() > 0;
         }
@@ -458,54 +469,54 @@ namespace TalentDesk.Repositories
             using var conexao = AbrirConexao();
 
             // Experiências e competências são apagadas junto (ON DELETE CASCADE)
-            using var comando = new MySqlCommand("DELETE FROM curriculos WHERE id = @id;", conexao);
+            using var comando = new SqliteCommand("DELETE FROM curriculos WHERE id = @id;", conexao);
             comando.Parameters.AddWithValue("@id", id);
             return comando.ExecuteNonQuery() > 0;
         }
 
         // ================= AUXILIARES =================
 
-        private static void AdicionarParametros(MySqlCommand comando, Curriculo c)
+        private static void AdicionarParametros(SqliteCommand comando, Curriculo c)
         {
             comando.Parameters.AddWithValue("@nome", c.Nome);
             comando.Parameters.AddWithValue("@cargo", c.Cargo);
             comando.Parameters.AddWithValue("@area", c.Area);
             comando.Parameters.AddWithValue("@formacao", c.Formacao);
-            comando.Parameters.AddWithValue("@formacao_detalhada", c.FormacaoDetalhada);
-            comando.Parameters.AddWithValue("@instituicao", c.Instituicao);
-            comando.Parameters.AddWithValue("@conclusao_formacao", c.ConclusaoFormacao);
+            comando.Parameters.AddWithValue("@formacao_detalhada", ValorOuNulo(c.FormacaoDetalhada));
+            comando.Parameters.AddWithValue("@instituicao", ValorOuNulo(c.Instituicao));
+            comando.Parameters.AddWithValue("@conclusao_formacao", ValorOuNulo(c.ConclusaoFormacao));
             comando.Parameters.AddWithValue("@idade", c.Idade);
             comando.Parameters.AddWithValue("@anos_experiencia", c.AnosExperiencia);
-            comando.Parameters.AddWithValue("@foto_url", c.FotoUrl);
+            comando.Parameters.AddWithValue("@foto_url", ValorOuNulo(c.FotoUrl));
             comando.Parameters.AddWithValue("@email", c.Email);
-            comando.Parameters.AddWithValue("@telefone", c.Telefone);
+            comando.Parameters.AddWithValue("@telefone", ValorOuNulo(c.Telefone));
             comando.Parameters.AddWithValue("@cidade", c.Cidade);
-            comando.Parameters.AddWithValue("@linkedin", c.Linkedin);
-            comando.Parameters.AddWithValue("@resumo", c.Resumo);
+            comando.Parameters.AddWithValue("@linkedin", ValorOuNulo(c.Linkedin));
+            comando.Parameters.AddWithValue("@resumo", ValorOuNulo(c.Resumo));
             comando.Parameters.AddWithValue("@status", c.Status);
         }
 
-        private static void GravarFilhos(MySqlConnection conexao, MySqlTransaction transacao, int curriculoId, Curriculo c)
+        private static void GravarFilhos(SqliteConnection conexao, SqliteTransaction transacao, int curriculoId, Curriculo c)
         {
             int ordem = 0;
             foreach (var experiencia in c.Experiencias)
             {
-                using var comando = new MySqlCommand(@"
+                using var comando = new SqliteCommand(@"
                     INSERT INTO curriculo_experiencias (curriculo_id, cargo, empresa, periodo, descricao, ordem)
                     VALUES (@curriculo_id, @cargo, @empresa, @periodo, @descricao, @ordem);", conexao, transacao);
 
                 comando.Parameters.AddWithValue("@curriculo_id", curriculoId);
                 comando.Parameters.AddWithValue("@cargo", experiencia.Cargo);
                 comando.Parameters.AddWithValue("@empresa", experiencia.Empresa);
-                comando.Parameters.AddWithValue("@periodo", experiencia.Periodo);
-                comando.Parameters.AddWithValue("@descricao", experiencia.Descricao);
+                comando.Parameters.AddWithValue("@periodo", ValorOuNulo(experiencia.Periodo));
+                comando.Parameters.AddWithValue("@descricao", ValorOuNulo(experiencia.Descricao));
                 comando.Parameters.AddWithValue("@ordem", ordem++);
                 comando.ExecuteNonQuery();
             }
 
             foreach (string habilidade in c.Habilidades)
             {
-                using var comando = new MySqlCommand(@"
+                using var comando = new SqliteCommand(@"
                     INSERT INTO curriculo_habilidades (curriculo_id, nome)
                     VALUES (@curriculo_id, @nome);", conexao, transacao);
 
@@ -515,7 +526,7 @@ namespace TalentDesk.Repositories
             }
         }
 
-        private static Curriculo LerCurriculo(MySqlDataReader leitor)
+        private static Curriculo LerCurriculo(SqliteDataReader leitor)
         {
             return new Curriculo
             {
@@ -536,11 +547,18 @@ namespace TalentDesk.Repositories
                 Linkedin = TextoOuVazio(leitor, "linkedin"),
                 Resumo = TextoOuVazio(leitor, "resumo"),
                 Status = leitor.GetString("status"),
-                DataCadastro = leitor.GetDateTime("data_cadastro")
+                // A data vem como texto; se estiver inválida, usa a data mínima em vez de dar erro
+                DataCadastro = BancoDeDados.LerData(leitor["data_cadastro"]) ?? DateTime.MinValue
             };
         }
 
-        private static string TextoOuVazio(MySqlDataReader leitor, string coluna)
+        // O SQLite não aceita null do C# como parâmetro: precisa ser DBNull
+        private static object ValorOuNulo(string? texto)
+        {
+            return (object?)texto ?? DBNull.Value;
+        }
+
+        private static string TextoOuVazio(SqliteDataReader leitor, string coluna)
         {
             return leitor[coluna] as string ?? string.Empty;
         }

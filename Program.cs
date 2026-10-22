@@ -1,13 +1,8 @@
-using TalentDesk.Filters;
 using TalentDesk.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllersWithViews(opcoes =>
-{
-    // Mostra uma tela amigável quando o MySQL está desligado
-    opcoes.Filters.Add<BancoIndisponivelFilter>();
-});
+builder.Services.AddControllersWithViews();
 
 // Sessão: guarda o usuário logado
 builder.Services.AddDistributedMemoryCache();
@@ -37,7 +32,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Curriculo}/{action=Index}/{id?}");
 
-// Cria as tabelas de currículos no MySQL (se ainda não existirem)
+// Cria o arquivo do banco SQLite e as tabelas (se ainda não existirem)
 BancoDeDados.TentarInicializar(app.Logger);
 
 app.Run();

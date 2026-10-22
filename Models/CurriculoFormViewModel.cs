@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Http;
 
 namespace TalentDesk.Models
 {
@@ -102,11 +101,8 @@ namespace TalentDesk.Models
 
         public List<ExperienciaFormItem> Experiencias { get; set; } = new();
 
-        // Foto atual (quando está editando) e novo arquivo enviado
+        // Foto atual (só para exibir na edição)
         public string? FotoUrl { get; set; }
-
-        [Display(Name = "Foto")]
-        public IFormFile? Foto { get; set; }
 
         // Opções de sugestão nos campos
         public List<string> SugestoesAreas { get; set; } = new();
